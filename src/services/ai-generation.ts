@@ -1,4 +1,7 @@
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { BlockType, BlockContent, Brand } from '@/types'
+
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '')
 
 interface AIGenerationOptions {
   brand: Brand
@@ -121,25 +124,32 @@ async function callAIProvider(params: {
   userPrompt: string
   context?: Record<string, unknown>
 }): Promise<{ content: BlockContent; model: string }> {
-  // Placeholder implementation
-  // Replace with actual AI provider integration
-  
-  // Example with OpenAI:
-  // const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  // const completion = await openai.chat.completions.create({
-  //   model: 'gpt-4',
-  //   messages: [
-  //     { role: 'system', content: params.systemPrompt },
-  //     { role: 'user', content: params.userPrompt },
-  //   ],
-  //   response_format: { type: 'json_object' },
-  // })
-  // return {
-  //   content: JSON.parse(completion.choices[0].message.content),
-  //   model: 'gpt-4',
-  // }
+  if (!process.env.GOOGLE_AI_API_KEY) {
+    throw new Error('GOOGLE_AI_API_KEY not configured in environment variables.')
+  }
 
-  throw new Error('AI provider not configured. Please integrate with OpenAI, Anthropic, or another provider.')
+  const model = genAI.getGenerativeModel({ 
+    model: 'gemini-1.5-flash',
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0.7,
+    },
+  })
+
+  const prompt = `${params.systemPrompt}\n\n${params.userPrompt}`
+  
+  const result = await model.generateContent(prompt)
+  const response = result.response
+  const text = response.text()
+
+  if (!text) {
+    throw new Error('No content returned from Gemini')
+  }
+
+  return {
+    content: JSON.parse(text) as BlockContent,
+    model: 'gemini-1.5-flash',
+  }
 }
 
 export function getBlockPrompt(blockType: BlockType): string {
