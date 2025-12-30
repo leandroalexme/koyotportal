@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { AssetCard, AssetUpload, AssetPreview, AssetFilters, type AssetFiltersState } from '@/components/dam'
-import { getAssets, deleteAsset, archiveAsset, type Asset } from '@/services/dam-service'
+import { getAssets, deleteAsset, archiveAsset, getAsset, type Asset } from '@/services/dam-service'
 import { cn } from '@/lib/utils'
 
 export default function AssetsPage() {
@@ -25,6 +25,7 @@ export default function AssetsPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [previewAsset, setPreviewAsset] = useState<Asset | null>(null)
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set())
+  const [analyzingAssets, setAnalyzingAssets] = useState<Set<string>>(new Set())
   
   const [filters, setFilters] = useState<AssetFiltersState>({
     search: '',
@@ -154,6 +155,44 @@ export default function AssetsPage() {
     })
   }
 
+  const handleReanalyze = async (asset: Asset) => {
+    if (analyzingAssets.has(asset.id)) return
+
+    setAnalyzingAssets(prev => new Set(prev).add(asset.id))
+
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const url = `${supabaseUrl}/storage/v1/object/public/brand-assets/${asset.file_path}`
+
+      const response = await fetch('/api/assets/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetId: asset.id,
+          url,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Falha na análise')
+      }
+
+      // Reload the updated asset
+      const updatedAsset = await getAsset(asset.id)
+      if (updatedAsset) {
+        setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a))
+      }
+    } catch (error) {
+      console.error('Error analyzing asset:', error)
+    } finally {
+      setAnalyzingAssets(prev => {
+        const next = new Set(prev)
+        next.delete(asset.id)
+        return next
+      })
+    }
+  }
+
   return (
     <div className="container mx-auto px-6 py-8">
       {/* Header */}
@@ -258,6 +297,8 @@ export default function AssetsPage() {
                 onDownload={handleDownload}
                 onArchive={handleArchive}
                 onCopyUrl={handleCopyUrl}
+                onReanalyze={handleReanalyze}
+                analyzing={analyzingAssets.has(asset.id)}
               />
             ))}
           </div>

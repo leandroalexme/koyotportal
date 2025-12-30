@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
+/* eslint-disable @next/next/no-img-element */
 import { 
   X, 
   Download, 
@@ -130,10 +130,20 @@ export function AssetPreview({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[90vh] p-0 gap-0">
-        <div className="flex h-full">
+      <DialogContent 
+        className="p-0 gap-0 overflow-hidden border-0" 
+        showCloseButton={false}
+        style={{ 
+          maxWidth: '95vw', 
+          width: '1200px', 
+          height: '85vh',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <div className="flex flex-1 min-h-0">
           {/* Preview area */}
-          <div className="relative flex-1 bg-black/95 flex items-center justify-center">
+          <div className="relative flex-1 min-w-0 bg-black/95 flex items-center justify-center">
             {/* Close button */}
             <Button
               variant="ghost"
@@ -209,16 +219,17 @@ export function AssetPreview({
             {/* Image preview */}
             {isImage ? (
               <div 
-                className="relative overflow-auto max-w-full max-h-full"
+                className="relative w-full h-full flex items-center justify-center"
                 style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
               >
-                <Image
+                <img
                   src={getPublicUrl(currentAsset.file_path)}
                   alt={currentAsset.alt_text || currentAsset.name}
-                  width={currentAsset.width || 800}
-                  height={currentAsset.height || 600}
-                  className="object-contain"
-                  priority
+                  className="max-w-full max-h-full object-contain"
+                  style={{ 
+                    maxHeight: 'calc(85vh - 4rem)',
+                    maxWidth: 'calc(100% - 4rem)'
+                  }}
                 />
               </div>
             ) : (

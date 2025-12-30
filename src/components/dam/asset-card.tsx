@@ -14,7 +14,12 @@ import {
   FileImage,
   FileVideo,
   File,
-  Crown
+  Crown,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  RefreshCw
 } from 'lucide-react'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +31,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { Asset } from '@/services/dam-service'
 
@@ -37,8 +53,10 @@ interface AssetCardProps {
   onDownload?: (asset: Asset) => void
   onArchive?: (asset: Asset) => void
   onCopyUrl?: (asset: Asset) => void
+  onReanalyze?: (asset: Asset) => void
   selected?: boolean
   onSelect?: (asset: Asset) => void
+  analyzing?: boolean
 }
 
 const categoryIcons = {
@@ -82,13 +100,19 @@ export function AssetCard({
   onDownload,
   onArchive,
   onCopyUrl,
+  onReanalyze,
   selected,
   onSelect,
+  analyzing = false,
 }: AssetCardProps) {
   const [imageError, setImageError] = useState(false)
+  const [showTags, setShowTags] = useState(false)
   const isImage = asset.mime_type.startsWith('image/')
   const category = (asset.file_type as keyof typeof categoryIcons) || 'other'
   const CategoryIcon = categoryIcons[category] || File
+  
+  const hasAiTags = asset.ai_tags && asset.ai_tags.length > 0
+  const aiColors = (asset.ai_colors as string[]) || []
 
   const handleCopyUrl = () => {
     const url = getPublicUrl(asset.file_path)
@@ -134,6 +158,7 @@ export function AssetCard({
             className="object-cover transition-transform duration-300 group-hover:scale-105"
             onError={() => setImageError(true)}
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            loading="lazy"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -212,25 +237,122 @@ export function AssetCard({
           </DropdownMenu>
         </div>
 
-        {/* Tags */}
-        {(asset.ai_tags && asset.ai_tags.length > 0) && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {asset.ai_tags.slice(0, 3).map((tag) => (
-              <Badge 
-                key={tag} 
-                variant="secondary" 
-                className="text-[10px] px-1.5 py-0"
-              >
-                {tag}
-              </Badge>
-            ))}
-            {asset.ai_tags.length > 3 && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                +{asset.ai_tags.length - 3}
-              </Badge>
-            )}
-          </div>
-        )}
+        {/* Smart Tags Section */}
+        <Collapsible open={showTags} onOpenChange={setShowTags}>
+          {/* Analyzing state */}
+          {analyzing && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Analisando com IA...</span>
+            </div>
+          )}
+
+          {/* Tags preview */}
+          {!analyzing && hasAiTags && (
+            <div className="mt-2">
+              <CollapsibleTrigger asChild>
+                <button className="flex w-full items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                  <Sparkles className="h-3 w-3" />
+                  <span>Smart Tags</span>
+                  {showTags ? (
+                    <ChevronUp className="h-3 w-3 ml-auto" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3 ml-auto" />
+                  )}
+                </button>
+              </CollapsibleTrigger>
+              
+              {/* Collapsed: show first 3 tags */}
+              {!showTags && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {asset.ai_tags!.slice(0, 3).map((tag) => (
+                    <Badge 
+                      key={tag} 
+                      variant="secondary" 
+                      className="text-[10px] px-1.5 py-0"
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                  {asset.ai_tags!.length > 3 && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      +{asset.ai_tags!.length - 3}
+                    </Badge>
+                  )}
+                </div>
+              )}
+
+              {/* Expanded: show all tags + colors */}
+              <CollapsibleContent>
+                <div className="mt-2 space-y-2">
+                  {/* All tags */}
+                  <div className="flex flex-wrap gap-1">
+                    {asset.ai_tags!.map((tag) => (
+                      <Badge 
+                        key={tag} 
+                        variant="secondary" 
+                        className="text-[10px] px-1.5 py-0"
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+
+                  {/* AI Colors */}
+                  {aiColors.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-muted-foreground">Cores:</span>
+                      <div className="flex gap-0.5">
+                        {aiColors.slice(0, 5).map((color, i) => (
+                          <TooltipProvider key={i}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div
+                                  className="h-4 w-4 rounded-sm border border-border/50"
+                                  style={{ backgroundColor: color }}
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="text-xs">
+                                {color}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Re-analyze button */}
+                  {onReanalyze && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-full text-[10px] gap-1"
+                      onClick={() => onReanalyze(asset)}
+                      disabled={analyzing}
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Re-analisar
+                    </Button>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </div>
+          )}
+
+          {/* No tags yet */}
+          {!analyzing && !hasAiTags && isImage && onReanalyze && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 h-6 w-full text-[10px] gap-1 text-muted-foreground"
+              onClick={() => onReanalyze(asset)}
+            >
+              <Sparkles className="h-3 w-3" />
+              Analisar com IA
+            </Button>
+          )}
+        </Collapsible>
 
         {/* Category badge */}
         <div className="mt-2">
