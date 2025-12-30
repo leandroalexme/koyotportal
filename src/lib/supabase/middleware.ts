@@ -35,13 +35,28 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protected routes check
-  if (
-    !user &&
-    request.nextUrl.pathname.startsWith('/brand')
-  ) {
+  const pathname = request.nextUrl.pathname
+
+  // Auth routes (login/signup)
+  const isAuthRoute = pathname === '/login' || pathname === '/signup'
+
+  // Protected routes - require authentication
+  const protectedPrefixes = ['/briefing', '/brand']
+  const isProtectedRoute = protectedPrefixes.some(prefix => pathname.startsWith(prefix)) ||
+    /^\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.test(pathname)
+
+  // Redirect unauthenticated users from protected routes to login
+  if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    url.searchParams.set('redirect', pathname)
+    return NextResponse.redirect(url)
+  }
+
+  // Redirect authenticated users from auth routes to briefing
+  if (user && isAuthRoute) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/briefing'
     return NextResponse.redirect(url)
   }
 
