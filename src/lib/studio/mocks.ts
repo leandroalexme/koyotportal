@@ -12,6 +12,7 @@ import type {
   ImageNode,
   RectangleNode,
 } from '@/types/studio'
+import { DEFAULT_GOVERNANCE } from '@/types/studio'
 
 // ============================================
 // HELPER: CREATE NODE DEFAULTS
@@ -37,6 +38,7 @@ const createBaseNode = (overrides: Partial<FrameNode>) => ({
     gap: 0,
     wrap: false,
   },
+  governance: DEFAULT_GOVERNANCE,
   ...overrides,
 })
 

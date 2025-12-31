@@ -24,6 +24,104 @@ export type FontWeight = 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900
 export type BlendMode = 'NORMAL' | 'MULTIPLY' | 'SCREEN' | 'OVERLAY' | 'DARKEN' | 'LIGHTEN'
 
 // ============================================
+// GOVERNANCE & PERMISSIONS (CRUCIAL FOR NON-DESIGNERS)
+// ============================================
+
+/** Propriedades que podem ser bloqueadas para membros */
+export type LockableProperty = 
+  | 'position'
+  | 'size'
+  | 'rotation'
+  | 'opacity'
+  | 'fills'
+  | 'border'
+  | 'shadows'
+  | 'cornerRadius'
+  | 'gap'
+  | 'padding'
+  | 'layoutMode'
+  | 'sizing'
+  | 'alignment'
+  | 'fontFamily'
+  | 'fontSize'
+  | 'fontWeight'
+  | 'lineHeight'
+  | 'letterSpacing'
+  | 'textAlign'
+  | 'textColor'
+  | 'content'
+  | 'image'
+
+/** Papel do usuário no contexto de edição */
+export type UserRole = 'owner' | 'admin' | 'editor' | 'member' | 'viewer'
+
+/** Configuração de governança para um nó */
+export interface NodeGovernance {
+  /** Propriedades bloqueadas - membros não podem alterar */
+  lockedProps: LockableProperty[]
+  
+  /** Se true, usuário só pode alterar conteúdo (texto/imagem), não layout */
+  isContentOnly: boolean
+  
+  /** Papéis que podem editar este nó */
+  editableBy: UserRole[]
+  
+  /** Limites de valores permitidos (ex: fontSize entre 12 e 48) */
+  constraints?: {
+    fontSize?: { min: number; max: number }
+    gap?: { min: number; max: number }
+    padding?: { min: number; max: number }
+    opacity?: { min: number; max: number }
+    cornerRadius?: { min: number; max: number }
+    lineHeight?: { min: number; max: number }
+    letterSpacing?: { min: number; max: number }
+  }
+  
+  /** Cores permitidas da paleta da marca */
+  allowedColors?: string[]
+  
+  /** Fontes permitidas do brand guide */
+  allowedFonts?: string[]
+  
+  /** Se permite upload de imagens ou apenas do DAM */
+  allowImageUpload: boolean
+  
+  /** Se permite crop/ajuste de imagem */
+  allowImageCrop: boolean
+  
+  /** IDs de assets permitidos do DAM (para galeria restrita) */
+  allowedAssetIds?: string[]
+  
+  /** Texto placeholder/exemplo */
+  placeholder?: string
+  
+  /** Descrição/instrução para o usuário */
+  helpText?: string
+}
+
+/** Valores padrão de governança */
+export const DEFAULT_GOVERNANCE: NodeGovernance = {
+  lockedProps: [],
+  isContentOnly: false,
+  editableBy: ['owner', 'admin', 'editor'],
+  allowImageUpload: true,
+  allowImageCrop: true,
+}
+
+/** Governança restritiva para membros (modo template) */
+export const MEMBER_GOVERNANCE: NodeGovernance = {
+  lockedProps: [
+    'position', 'size', 'rotation', 'fills', 'border', 'shadows',
+    'cornerRadius', 'gap', 'padding', 'layoutMode', 'sizing', 'alignment',
+    'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textAlign'
+  ],
+  isContentOnly: true,
+  editableBy: ['owner', 'admin', 'editor', 'member'],
+  allowImageUpload: false,
+  allowImageCrop: false,
+}
+
+// ============================================
 // GEOMETRY & STYLING
 // ============================================
 
@@ -233,6 +331,9 @@ export interface BaseNode {
   
   /** Propriedades de auto-layout */
   autoLayout: AutoLayoutProps
+  
+  /** Governança - controle de permissões para não-designers */
+  governance?: NodeGovernance
   
   /** Metadados customizados */
   metadata?: Record<string, unknown>
