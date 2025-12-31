@@ -96,7 +96,7 @@ function renderFrame(
   node: FrameNode,
   context: RenderContext
 ): void {
-  const { ctx, layoutMap, zoom, selectedNodeId, loadedImages } = context
+  const { ctx, layoutMap, zoom, selectedNodeId } = context
   const layout = layoutMap.get(node.id)
   if (!layout) return
   

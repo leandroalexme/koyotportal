@@ -93,7 +93,7 @@ const eqiInstagramPostRoot: FrameNode = {
           size: { width: 180, height: 50 },
           imageProps: {
             assetId: undefined, // Será preenchido com asset do DAM
-            src: '/placeholder-logo.svg',
+            src: '',
             alt: 'EQI Investimentos Logo',
             objectFit: 'FIT',
             objectPosition: { x: 0.5, y: 0.5 },
@@ -325,7 +325,7 @@ const eqiLinkedInBannerRoot: FrameNode = {
       type: 'IMAGE',
       size: { width: 200, height: 60 },
       imageProps: {
-        src: '/placeholder-logo-white.svg',
+        src: '',
         alt: 'EQI Logo',
         objectFit: 'FIT',
         objectPosition: { x: 0.5, y: 0.5 },
@@ -384,7 +384,7 @@ const eqiBusinessCardRoot: FrameNode = {
           type: 'IMAGE',
           size: { width: 180, height: 50 },
           imageProps: {
-            src: '/placeholder-logo-white.svg',
+            src: '',
             alt: 'EQI Logo',
             objectFit: 'FIT',
             objectPosition: { x: 0.5, y: 0.5 },

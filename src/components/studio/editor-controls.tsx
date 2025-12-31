@@ -348,7 +348,7 @@ function LayoutControls({ node, userRole, onUpdate }: LayoutControlsProps) {
             <LockedIndicator locked={!canEditSizing} />
           </Label>
           <Select 
-            value={node.autoLayout.horizontalSizing} 
+            defaultValue={node.autoLayout.horizontalSizing} 
             disabled={!canEditSizing}
           >
             <SelectTrigger className="h-8 text-xs">
@@ -367,7 +367,7 @@ function LayoutControls({ node, userRole, onUpdate }: LayoutControlsProps) {
             <LockedIndicator locked={!canEditSizing} />
           </Label>
           <Select 
-            value={node.autoLayout.verticalSizing}
+            defaultValue={node.autoLayout.verticalSizing}
             disabled={!canEditSizing}
           >
             <SelectTrigger className="h-8 text-xs">
@@ -392,7 +392,7 @@ function LayoutControls({ node, userRole, onUpdate }: LayoutControlsProps) {
           <span className="text-xs">{node.autoLayout.gap}px</span>
         </div>
         <Slider
-          value={[node.autoLayout.gap]}
+          defaultValue={[node.autoLayout.gap]}
           min={gapConstraint?.min ?? 0}
           max={gapConstraint?.max ?? 100}
           step={1}
@@ -417,11 +417,12 @@ function LayoutControls({ node, userRole, onUpdate }: LayoutControlsProps) {
               <Label className="text-[10px] text-muted-foreground uppercase">{side[0]}</Label>
               <Input
                 type="number"
-                value={node.autoLayout.padding[side]}
+                defaultValue={node.autoLayout.padding[side]}
                 className="h-8 text-xs text-center"
                 disabled={!canEditPadding}
                 min={paddingConstraint?.min ?? 0}
                 max={paddingConstraint?.max ?? 200}
+                readOnly={!canEditPadding}
               />
             </div>
           ))}
@@ -534,7 +535,7 @@ function StyleControls({
               <LockedIndicator locked={!canEditProperty(governance, 'fontFamily', userRole)} />
             </Label>
             <Select 
-              value={textNode.textProps.style.fontFamily}
+              defaultValue={textNode.textProps.style.fontFamily}
               disabled={!canEditProperty(governance, 'fontFamily', userRole)}
             >
               <SelectTrigger className="h-8 text-xs">
@@ -566,7 +567,7 @@ function StyleControls({
               <span className="text-xs">{textNode.textProps.style.fontSize}px</span>
             </div>
             <Slider
-              value={[textNode.textProps.style.fontSize]}
+              defaultValue={[textNode.textProps.style.fontSize]}
               min={getConstraint(governance, 'fontSize')?.min ?? 8}
               max={getConstraint(governance, 'fontSize')?.max ?? 120}
               step={1}
@@ -581,7 +582,7 @@ function StyleControls({
               <LockedIndicator locked={!canEditProperty(governance, 'fontWeight', userRole)} />
             </Label>
             <Select 
-              value={String(textNode.textProps.style.fontWeight)}
+              defaultValue={String(textNode.textProps.style.fontWeight)}
               disabled={!canEditProperty(governance, 'fontWeight', userRole)}
             >
               <SelectTrigger className="h-8 text-xs">
@@ -630,7 +631,7 @@ function StyleControls({
           <span className="text-xs">{Math.round(node.opacity * 100)}%</span>
         </div>
         <Slider
-          value={[node.opacity * 100]}
+          defaultValue={[node.opacity * 100]}
           min={0}
           max={100}
           step={1}
