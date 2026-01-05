@@ -29,7 +29,7 @@ import {
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 import type { FrameNode, LayoutMode, Alignment, UserRole } from '@/types/studio'
-import { SidebarLayout, LockedLabel, ColorSelect, type BrandColor } from './components'
+import { SidebarLayout, LockedLabel, ColorSelect, TransformControls, type BrandColor } from './components'
 
 // ============================================
 // TYPES
@@ -299,6 +299,41 @@ export function FrameSettings({ node, userRole, onUpdate, onBack }: FrameSetting
     })
   }, [node.id, onUpdate])
 
+  const handleTransformUpdate = useCallback((updates: {
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+    rotation?: number
+    opacity?: number
+  }) => {
+    const nodeUpdates: Partial<FrameNode> = {}
+    
+    if (updates.x !== undefined || updates.y !== undefined) {
+      nodeUpdates.position = {
+        x: updates.x ?? node.position.x,
+        y: updates.y ?? node.position.y,
+      }
+    }
+    
+    if (updates.width !== undefined || updates.height !== undefined) {
+      nodeUpdates.size = {
+        width: updates.width ?? node.size.width,
+        height: updates.height ?? node.size.height,
+      }
+    }
+    
+    if (updates.rotation !== undefined) {
+      nodeUpdates.rotation = updates.rotation
+    }
+    
+    if (updates.opacity !== undefined) {
+      nodeUpdates.opacity = updates.opacity / 100
+    }
+    
+    onUpdate(node.id, nodeUpdates)
+  }, [node.id, node.position, node.size, onUpdate])
+
   return (
     <SidebarLayout
       title={node.name}
@@ -307,6 +342,27 @@ export function FrameSettings({ node, userRole, onUpdate, onBack }: FrameSetting
       description="Ajuste o layout, espaçamento e aparência deste container."
       onBack={onBack}
     >
+      {/* Transform Controls */}
+      <Accordion type="single" collapsible defaultValue="transform">
+        <AccordionItem value="transform" className="border-b border-border/50">
+          <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline">
+            Transformação
+          </AccordionTrigger>
+          <AccordionContent className="pb-6 pt-3">
+            <TransformControls
+              x={node.position.x}
+              y={node.position.y}
+              width={node.size.width}
+              height={node.size.height}
+              rotation={node.rotation ?? 0}
+              opacity={(node.opacity ?? 1) * 100}
+              locked={isLayoutLocked}
+              onUpdate={handleTransformUpdate}
+            />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
       {/* Settings Accordions */}
       <Accordion type="single" collapsible>
             {/* Layout Accordion */}

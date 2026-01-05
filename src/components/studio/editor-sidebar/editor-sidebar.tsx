@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { TextSettings } from './text-settings'
 import { FrameSettings } from './frame-settings'
 import { ImageSettings } from './image-settings'
@@ -7,6 +8,7 @@ import { ShapeSettings } from './shape-settings'
 import { ButtonSettings } from './button-settings'
 import { LogoSettings } from './logo-settings'
 import { EmptyStateSidebar } from './empty-state-sidebar'
+import { useEditorStore } from '@/stores/editor-store'
 import type { 
   SceneNode, 
   TextNode, 
@@ -28,6 +30,7 @@ interface EditorSidebarProps {
   onUpdateNode: (nodeId: string, updates: Partial<SceneNode>) => void
   onDeselectNode?: () => void
 }
+
 
 // ============================================
 // HELPER FUNCTIONS
@@ -193,5 +196,54 @@ export function EditorSidebar({
     <aside className={SIDEBAR_CLASSES}>
       <EmptyStateSidebar />
     </aside>
+  )
+}
+
+// ============================================
+// CONNECTED VERSION - Uses EditorStore directly
+// ============================================
+
+export function EditorSidebarConnected() {
+  const {
+    template,
+    selectedNodeIds,
+    userRole,
+    updateNode,
+    clearSelection,
+  } = useEditorStore()
+  
+  // Get selected node
+  const selectedNode = useCallback(() => {
+    if (!template || selectedNodeIds.length !== 1) return null
+    
+    const findNode = (node: SceneNode): SceneNode | null => {
+      if (node.id === selectedNodeIds[0]) return node
+      if (node.type === 'FRAME') {
+        for (const child of (node as FrameNode).children) {
+          const found = findNode(child)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    
+    return findNode(template.rootNode)
+  }, [template, selectedNodeIds])()
+  
+  const handleUpdateNode = useCallback((nodeId: string, updates: Partial<SceneNode>) => {
+    updateNode(nodeId, updates)
+  }, [updateNode])
+  
+  const handleDeselectNode = useCallback(() => {
+    clearSelection()
+  }, [clearSelection])
+  
+  return (
+    <EditorSidebar
+      selectedNode={selectedNode}
+      userRole={userRole}
+      onUpdateNode={handleUpdateNode}
+      onDeselectNode={handleDeselectNode}
+    />
   )
 }
