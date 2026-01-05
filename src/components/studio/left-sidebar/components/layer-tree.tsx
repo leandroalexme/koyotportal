@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useCallback } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { LayerItem, type LayerItemData } from './layer-item'
+import { useEditorStore } from '@/stores/editor-store'
 import type { SceneNode, FrameNode } from '@/types/studio'
 
 // ============================================
@@ -50,10 +51,20 @@ export function LayerTree({
   selectedLayerId,
   onSelectLayer,
 }: LayerTreeProps) {
+  const { toggleNodeVisibility, toggleNodeLock } = useEditorStore()
+  
   const layerData = useMemo(() => {
     if (!rootNode) return null
     return sceneNodeToLayerData(rootNode)
   }, [rootNode])
+
+  const handleToggleVisibility = useCallback((layerId: string) => {
+    toggleNodeVisibility(layerId)
+  }, [toggleNodeVisibility])
+
+  const handleToggleLock = useCallback((layerId: string) => {
+    toggleNodeLock(layerId)
+  }, [toggleNodeLock])
 
   if (!layerData) {
     return (
@@ -70,6 +81,8 @@ export function LayerTree({
           layer={layerData}
           selectedId={selectedLayerId}
           onSelect={onSelectLayer}
+          onToggleVisibility={handleToggleVisibility}
+          onToggleLock={handleToggleLock}
         />
       </div>
     </ScrollArea>

@@ -8,8 +8,10 @@ import {
   Minus,
   MousePointer,
   Hexagon,
+  Eye,
   EyeOff,
   Lock,
+  Unlock,
   ChevronRight,
   Folder,
   File,
@@ -20,6 +22,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import type { SceneNode } from '@/types/studio'
 
 // ============================================
@@ -40,6 +49,8 @@ interface LayerItemProps {
   layer: LayerItemData
   selectedId: string | null
   onSelect: (layerId: string) => void
+  onToggleVisibility?: (layerId: string) => void
+  onToggleLock?: (layerId: string) => void
 }
 
 // ============================================
@@ -81,10 +92,83 @@ function getLayerIcon(type: SceneNode['type'], name: string) {
 export function LayerItem({ 
   layer, 
   selectedId,
-  onSelect, 
+  onSelect,
+  onToggleVisibility,
+  onToggleLock,
 }: LayerItemProps) {
   const hasChildren = layer.children && layer.children.length > 0
   const isSelected = selectedId === layer.id
+
+  const handleToggleVisibility = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onToggleVisibility?.(layer.id)
+  }
+
+  const handleToggleLock = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onToggleLock?.(layer.id)
+  }
+
+  // Inline toggle buttons JSX
+  const toggleButtons = (
+    <div className="flex items-center gap-0.5 opacity-0 group-hover/layer:opacity-100 transition-opacity">
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-5"
+              onClick={handleToggleVisibility}
+            >
+              {layer.isVisible ? (
+                <Eye className="size-3 text-muted-foreground" />
+              ) : (
+                <EyeOff className="size-3 text-muted-foreground" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            {layer.isVisible ? 'Ocultar' : 'Mostrar'}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-5"
+              onClick={handleToggleLock}
+            >
+              {layer.isLocked ? (
+                <Lock className="size-3 text-muted-foreground" />
+              ) : (
+                <Unlock className="size-3 text-muted-foreground" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            {layer.isLocked ? 'Desbloquear' : 'Bloquear'}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  )
+
+  // Inline status indicators JSX
+  const statusIndicators = (
+    <div className="flex items-center gap-0.5 shrink-0">
+      {layer.isLocked && (
+        <Lock className="size-3 text-amber-500" />
+      )}
+      {!layer.isVisible && (
+        <EyeOff className="size-3 text-muted-foreground" />
+      )}
+    </div>
+  )
 
   // Leaf node (no children)
   if (!hasChildren) {
@@ -92,23 +176,19 @@ export function LayerItem({
       <button
         onClick={() => onSelect(layer.id)}
         className={cn(
-          "flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors text-left",
+          "group/layer flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors text-left",
           isSelected 
             ? "bg-accent text-accent-foreground" 
             : "hover:bg-accent/50",
           !layer.isVisible && "opacity-50"
         )}
       >
-        <span className="text-muted-foreground">
+        <span className="text-muted-foreground shrink-0">
           {getLayerIcon(layer.type, layer.name)}
         </span>
         <span className="flex-1 truncate">{layer.name}</span>
-        {!layer.isEditable && (
-          <Lock className="size-3 text-muted-foreground shrink-0" />
-        )}
-        {!layer.isVisible && (
-          <EyeOff className="size-3 text-muted-foreground shrink-0" />
-        )}
+        {toggleButtons}
+        {statusIndicators}
       </button>
     )
   }
@@ -123,24 +203,20 @@ export function LayerItem({
         <button
           onClick={() => onSelect(layer.id)}
           className={cn(
-            "flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors text-left",
+            "group/layer flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors text-left",
             isSelected 
               ? "bg-accent text-accent-foreground" 
               : "hover:bg-accent/50",
             !layer.isVisible && "opacity-50"
           )}
         >
-          <ChevronRight className="size-4 text-muted-foreground transition-transform" />
-          <span className="text-muted-foreground">
+          <ChevronRight className="size-4 text-muted-foreground transition-transform shrink-0" />
+          <span className="text-muted-foreground shrink-0">
             {getLayerIcon(layer.type, layer.name)}
           </span>
           <span className="flex-1 truncate">{layer.name}</span>
-          {!layer.isEditable && (
-            <Lock className="size-3 text-muted-foreground shrink-0" />
-          )}
-          {!layer.isVisible && (
-            <EyeOff className="size-3 text-muted-foreground shrink-0" />
-          )}
+          {toggleButtons}
+          {statusIndicators}
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -151,6 +227,8 @@ export function LayerItem({
               layer={child}
               selectedId={selectedId}
               onSelect={onSelect}
+              onToggleVisibility={onToggleVisibility}
+              onToggleLock={onToggleLock}
             />
           ))}
         </div>
