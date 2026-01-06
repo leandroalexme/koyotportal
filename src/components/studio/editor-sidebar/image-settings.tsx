@@ -8,6 +8,7 @@ import {
   Sun,
   Contrast,
   Droplets,
+  Settings2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,7 +27,7 @@ import {
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 import type { ImageNode, UserRole } from '@/types/studio'
-import { SidebarLayout, LockedLabel, TransformControls } from './components'
+import { SidebarLayout, LockedLabel, TransformControls, InfoAlert } from './components'
 
 // ============================================
 // TYPES
@@ -65,10 +66,10 @@ const CORNER_RADIUS_OPTIONS = [
 export function ImageSettings({ node, userRole, onUpdate, onBack }: ImageSettingsProps) {
   const isMember = userRole === 'member'
   
-  // Locked controls (for demo)
-  const isImageLocked = true // Demo: locked
-  const isFilterLocked = false // Demo: unlocked
-  const isCornerLocked = true // Demo: locked
+  // Locked controls - based on user role (all unlocked for editors)
+  const isImageLocked = false
+  const isFilterLocked = false
+  const isCornerLocked = false
   
   // Filter states
   const [brightness, setBrightness] = useState(node.imageProps.filters?.brightness ?? 100)
@@ -185,27 +186,6 @@ export function ImageSettings({ node, userRole, onUpdate, onBack }: ImageSetting
           Substituir Imagem
         </Button>
       </section>
-
-      {/* Transform Controls */}
-      <Accordion type="single" collapsible defaultValue="transform">
-        <AccordionItem value="transform" className="border-b border-border/50">
-          <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline">
-            Transformação
-          </AccordionTrigger>
-          <AccordionContent className="pb-6 pt-3">
-            <TransformControls
-              x={node.position.x}
-              y={node.position.y}
-              width={node.size.width}
-              height={node.size.height}
-              rotation={node.rotation ?? 0}
-              opacity={(node.opacity ?? 1) * 100}
-              locked={isImageLocked}
-              onUpdate={handleTransformUpdate}
-            />
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
 
       {/* Settings Accordions */}
       <Accordion type="single" collapsible>
@@ -400,6 +380,30 @@ export function ImageSettings({ node, userRole, onUpdate, onBack }: ImageSetting
               <span className="text-sm text-muted-foreground truncate">
                 {node.imageProps.alt || 'Não definido'}
               </span>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Transformação Accordion - Always at the end */}
+        <AccordionItem value="transform" className="border-b border-border/50">
+          <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline">
+            Transformação
+          </AccordionTrigger>
+          <AccordionContent className="pb-6 pt-3 overflow-visible">
+            <div className="space-y-6">
+              <InfoAlert icon={<Settings2 className="size-4" />}>
+                Configurações avançadas de posição, dimensão e aparência do elemento.
+              </InfoAlert>
+              <TransformControls
+                x={node.position.x}
+                y={node.position.y}
+                width={node.size.width}
+                height={node.size.height}
+                rotation={node.rotation ?? 0}
+                opacity={(node.opacity ?? 1) * 100}
+                locked={isImageLocked}
+                onUpdate={handleTransformUpdate}
+              />
             </div>
           </AccordionContent>
         </AccordionItem>

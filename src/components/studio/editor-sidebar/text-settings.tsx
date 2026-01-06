@@ -10,6 +10,7 @@ import {
   Type,
   Lock,
   Unlock,
+  Settings2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -32,7 +33,7 @@ import {
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 import type { TextNode, TextAlign, FontWeight, UserRole } from '@/types/studio'
-import { SidebarLayout, LockedLabel, ColorSelect, TransformControls, type BrandColor } from './components'
+import { SidebarLayout, LockedLabel, ColorSelect, TransformControls, InfoAlert, type BrandColor } from './components'
 import { VariableLinkButton, VariableIndicator } from './components/variable-link'
 
 // ============================================
@@ -280,12 +281,11 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
   const canEditTypography = !isMember
   const canEditColor = !isMember
   
-  // Locked controls (for demo - forcing some to show lock icon)
-  const isTypographyLocked = true // Demo: locked (Espessura, Estilo, Alinhamento)
-  const isColorLocked = true // Demo: locked
-  const isFontFamilyLocked = true // Demo: locked
-  const isFontSizeLocked = false // Demo: unlocked
-  const isSpacingLocked = false // Demo: unlocked
+  // Locked controls - all unlocked for testing
+  const isTypographyLocked = false
+  const isColorLocked = false
+  const isFontFamilyLocked = false
+  const isSpacingLocked = false
   
   const maxChars = 100
   const charCount = content.length
@@ -372,6 +372,18 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
     })
   }, [node.id, node.textProps, onUpdate])
 
+  const handleFontStyleChange = useCallback((fontStyle: 'normal' | 'italic') => {
+    onUpdate(node.id, {
+      textProps: {
+        ...node.textProps,
+        style: {
+          ...node.textProps.style,
+          fontStyle,
+        },
+      },
+    })
+  }, [node.id, node.textProps, onUpdate])
+
   const handleColorChange = useCallback((color: BrandColor) => {
     const hexToRgb = (hex: string) => {
       const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -391,6 +403,36 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
       }],
     })
   }, [node.id, onUpdate])
+
+  const handleLetterSpacingChange = useCallback((sliderValue: number) => {
+    const spacingIndex = sliderToSelectIndex(sliderValue)
+    const letterSpacing = LETTER_SPACINGS[spacingIndex]?.value ?? 0
+    setLetterSpacingValue(sliderValue)
+    onUpdate(node.id, {
+      textProps: {
+        ...node.textProps,
+        style: {
+          ...node.textProps.style,
+          letterSpacing,
+        },
+      },
+    })
+  }, [node.id, node.textProps, onUpdate])
+
+  const handleLineHeightChange = useCallback((sliderValue: number) => {
+    const heightIndex = sliderToSelectIndex(sliderValue)
+    const lineHeight = LINE_HEIGHTS[heightIndex]?.value ?? 1.5
+    setLineHeightValue(sliderValue)
+    onUpdate(node.id, {
+      textProps: {
+        ...node.textProps,
+        style: {
+          ...node.textProps.style,
+          lineHeight,
+        },
+      },
+    })
+  }, [node.id, node.textProps, onUpdate])
 
   const handleRevert = useCallback(() => {
     setContent(initialContentRef.current)
@@ -492,27 +534,6 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
             </div>
           </section>
 
-          {/* Transform Controls */}
-          <Accordion type="single" collapsible defaultValue="transform">
-            <AccordionItem value="transform" className="border-b border-border/50">
-              <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline">
-                Transformação
-              </AccordionTrigger>
-              <AccordionContent className="pb-6 pt-3">
-                <TransformControls
-                  x={node.position.x}
-                  y={node.position.y}
-                  width={node.size.width}
-                  height={node.size.height}
-                  rotation={node.rotation ?? 0}
-                  opacity={(node.opacity ?? 1) * 100}
-                  locked={!canEditTypography}
-                  onUpdate={handleTransformUpdate}
-                />
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-
           {/* Settings Accordions */}
           <Accordion type="single" collapsible>
             {/* Fonte Accordion */}
@@ -608,7 +629,8 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
                 <div className={cn("grid grid-cols-2 items-center gap-4", isTypographyLocked && "opacity-30")}>
                   <LockedLabel locked={isTypographyLocked}>Estilo</LockedLabel>
                   <Select
-                    value="normal"
+                    value={node.textProps.style.fontStyle ?? 'normal'}
+                    onValueChange={(v) => handleFontStyleChange(v as 'normal' | 'italic')}
                     disabled={isTypographyLocked}
                   >
                     <SelectTrigger className="w-full h-10 bg-muted/50 border-0">
@@ -666,7 +688,7 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
                   <LockedLabel locked={isSpacingLocked}>Letras</LockedLabel>
                   <Select
                     value={String(sliderToSelectIndex(letterSpacingValue))}
-                    onValueChange={(v) => setLetterSpacingValue(selectIndexToSlider(parseInt(v, 10)))}
+                    onValueChange={(v) => handleLetterSpacingChange(selectIndexToSlider(parseInt(v, 10)))}
                     disabled={isSpacingLocked}
                   >
                     <SelectTrigger className="w-full h-10 bg-transparent border border-border">
@@ -684,7 +706,7 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
                 <div className="px-1">
                   <Slider
                     value={[letterSpacingValue]}
-                    onValueChange={(v) => setLetterSpacingValue(v[0])}
+                    onValueChange={(v) => handleLetterSpacingChange(v[0])}
                     min={0}
                     max={6}
                     step={1}
@@ -700,7 +722,7 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
                   <LockedLabel locked={isSpacingLocked}>Linhas</LockedLabel>
                   <Select
                     value={String(sliderToSelectIndex(lineHeightValue))}
-                    onValueChange={(v) => setLineHeightValue(selectIndexToSlider(parseInt(v, 10)))}
+                    onValueChange={(v) => handleLineHeightChange(selectIndexToSlider(parseInt(v, 10)))}
                     disabled={isSpacingLocked}
                   >
                     <SelectTrigger className="w-full h-10 bg-transparent border border-border">
@@ -718,7 +740,7 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
                 <div className="px-1">
                   <Slider
                     value={[lineHeightValue]}
-                    onValueChange={(v) => setLineHeightValue(v[0])}
+                    onValueChange={(v) => handleLineHeightChange(v[0])}
                     min={0}
                     max={6}
                     step={1}
@@ -726,6 +748,30 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
                     className="w-full"
                   />
                 </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Transformação Accordion - Always at the end */}
+          <AccordionItem value="transform" className="border-b border-border/50">
+            <AccordionTrigger className="text-sm font-medium py-4 hover:no-underline">
+              Transformação
+            </AccordionTrigger>
+            <AccordionContent className="pb-6 pt-3 overflow-visible">
+              <div className="space-y-6">
+                <InfoAlert icon={<Settings2 className="size-4" />}>
+                  Configurações avançadas de posição, dimensão e aparência do elemento.
+                </InfoAlert>
+                <TransformControls
+                  x={node.position.x}
+                  y={node.position.y}
+                  width={node.size.width}
+                  height={node.size.height}
+                  rotation={node.rotation ?? 0}
+                  opacity={(node.opacity ?? 1) * 100}
+                  locked={!canEditTypography}
+                  onUpdate={handleTransformUpdate}
+                />
               </div>
             </AccordionContent>
           </AccordionItem>

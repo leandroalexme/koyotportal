@@ -41,6 +41,9 @@ export default function Home() {
             <Button variant="outline" size="lg" asChild>
               <Link href="/login">Já tenho conta</Link>
             </Button>
+            <Button variant="secondary" size="lg" asChild>
+              <Link href="/demo">Ver Demo</Link>
+            </Button>
           </div>
         </div>
 

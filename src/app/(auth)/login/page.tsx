@@ -37,7 +37,8 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/briefing')
+    // Redirect to dashboard - user will be redirected to their brand or brand selection
+    router.push('/dashboard')
     router.refresh()
   }
 

@@ -40,10 +40,21 @@ export async function updateSession(request: NextRequest) {
   // Auth routes (login/signup)
   const isAuthRoute = pathname === '/login' || pathname === '/signup'
 
+  // Demo brand ID for public access
+  const DEMO_BRAND_ID = 'a0295b8d-c0f9-49db-b839-8a6021d3ecf7'
+  
+  // Public routes - no authentication required
+  const isPublicRoute = pathname === '/' || 
+    pathname === '/demo' || 
+    pathname.startsWith('/demo/') ||
+    pathname.startsWith(`/${DEMO_BRAND_ID}`)
+
   // Protected routes - require authentication
   const protectedPrefixes = ['/briefing', '/brand']
-  const isProtectedRoute = protectedPrefixes.some(prefix => pathname.startsWith(prefix)) ||
+  const isProtectedRoute = !isPublicRoute && (
+    protectedPrefixes.some(prefix => pathname.startsWith(prefix)) ||
     /^\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.test(pathname)
+  )
 
   // Redirect unauthenticated users from protected routes to login
   if (!user && isProtectedRoute) {
@@ -53,10 +64,34 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users from auth routes to briefing
+  // Redirect authenticated users from auth routes
+  // Check if user has brands and redirect accordingly
   if (user && isAuthRoute) {
     const url = request.nextUrl.clone()
-    url.pathname = '/briefing'
+    
+    // Check for redirect param first
+    const redirectTo = request.nextUrl.searchParams.get('redirect')
+    if (redirectTo) {
+      url.pathname = redirectTo
+      url.searchParams.delete('redirect')
+      return NextResponse.redirect(url)
+    }
+    
+    // Try to get user's first brand
+    const { data: brands } = await supabase
+      .from('brands')
+      .select('id')
+      .eq('owner_id', user.id)
+      .limit(1)
+    
+    if (brands && brands.length > 0) {
+      // User has brands - redirect to their first brand's dashboard
+      url.pathname = `/${brands[0].id}`
+    } else {
+      // No brands - redirect to briefing to create one
+      url.pathname = '/briefing'
+    }
+    
     return NextResponse.redirect(url)
   }
 

@@ -1,11 +1,18 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Move, Maximize2, RotateCw, FlipHorizontal, FlipVertical } from 'lucide-react'
+import { Link2, Link2Off } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Tooltip,
   TooltipContent,
@@ -37,11 +44,22 @@ interface TransformControlsProps {
 }
 
 // ============================================
-// NUMBER INPUT WITH LABEL
+// CONSTANTS
 // ============================================
 
-interface NumberInputProps {
-  label: string
+const ROTATION_PRESETS = [
+  { label: '0°', value: 0 },
+  { label: '45°', value: 45 },
+  { label: '90°', value: 90 },
+  { label: '180°', value: 180 },
+  { label: '270°', value: 270 },
+]
+
+// ============================================
+// INLINE NUMBER INPUT (minimal)
+// ============================================
+
+interface InlineInputProps {
   value: number
   onChange: (value: number) => void
   min?: number
@@ -52,21 +70,20 @@ interface NumberInputProps {
   className?: string
 }
 
-function NumberInput({ 
-  label, 
+function InlineInput({ 
   value, 
   onChange, 
-  min = 0, 
+  min = -9999, 
   max = 9999, 
   step = 1,
   unit = 'px',
   disabled = false,
   className,
-}: NumberInputProps) {
-  const [localValue, setLocalValue] = useState(String(value))
+}: InlineInputProps) {
+  const [localValue, setLocalValue] = useState(String(Math.round(value)))
   
   useEffect(() => {
-    setLocalValue(String(value))
+    setLocalValue(String(Math.round(value)))
   }, [value])
   
   const handleBlur = () => {
@@ -74,47 +91,47 @@ function NumberInput({
     if (!isNaN(num)) {
       onChange(Math.max(min, Math.min(max, num)))
     } else {
-      setLocalValue(String(value))
+      setLocalValue(String(Math.round(value)))
     }
   }
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleBlur()
+      ;(e.target as HTMLInputElement).blur()
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      onChange(Math.min(max, value + step))
+      const newVal = Math.min(max, value + step)
+      onChange(newVal)
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      onChange(Math.max(min, value - step))
+      const newVal = Math.max(min, value - step)
+      onChange(newVal)
     }
   }
   
   return (
-    <div className={cn("space-y-1.5", className)}>
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      <div className="relative">
-        <Input
-          type="text"
-          value={localValue}
-          onChange={(e) => setLocalValue(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          className="h-9 pr-8 text-sm font-mono bg-muted/50 border-0"
-        />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-          {unit}
-        </span>
-      </div>
+    <div className={cn("relative", className)}>
+      <Input
+        type="text"
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        disabled={disabled}
+        className="h-10 pr-8 text-sm bg-muted/50 border-0"
+      />
+      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+        {unit}
+      </span>
     </div>
   )
 }
 
 // ============================================
-// TRANSFORM CONTROLS COMPONENT
+// TRANSFORM CONTROLS - Following TextSettings Pattern
 // ============================================
 
 export function TransformControls({
@@ -147,144 +164,111 @@ export function TransformControls({
   }, [constrainProportions, aspectRatio, onUpdate])
 
   return (
-    <div className="space-y-4">
-      {/* Position */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Move className="size-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Posição</span>
-        </div>
-        <div className={cn("grid grid-cols-2 gap-3", locked && "opacity-50 pointer-events-none")}>
-          <NumberInput
-            label="X"
-            value={Math.round(x)}
+    <div className={cn("space-y-6", locked && "opacity-50 pointer-events-none")}>
+      {/* Posição (X, Y) */}
+      <div className="grid grid-cols-2 items-center gap-4">
+        <Label className="text-sm font-normal text-muted-foreground">Posição</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <InlineInput
+            value={x}
             onChange={(v) => onUpdate({ x: v })}
             disabled={locked}
+            unit="X"
           />
-          <NumberInput
-            label="Y"
-            value={Math.round(y)}
+          <InlineInput
+            value={y}
             onChange={(v) => onUpdate({ y: v })}
             disabled={locked}
+            unit="Y"
           />
         </div>
       </div>
-      
-      {/* Size */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Maximize2 className="size-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Tamanho</span>
-          </div>
-          <TooltipProvider>
+
+      {/* Dimensão (L x A) */}
+      <div className="grid grid-cols-2 items-center gap-4">
+        <div className="flex items-center gap-1">
+          <Label className="text-sm font-normal text-muted-foreground">Dimensão</Label>
+          <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    "size-7",
-                    constrainProportions && "bg-accent text-accent-foreground"
+                    "size-5",
+                    constrainProportions && "text-primary bg-primary/10"
                   )}
                   onClick={() => setConstrainProportions(!constrainProportions)}
                   disabled={locked}
                 >
-                  <svg 
-                    viewBox="0 0 24 24" 
-                    className="size-4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M21 3H3v18h18V3z" />
-                    <path d="M9 3v18M3 9h18" />
-                  </svg>
+                  {constrainProportions ? (
+                    <Link2 className="size-3" />
+                  ) : (
+                    <Link2Off className="size-3 text-muted-foreground" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                {constrainProportions ? 'Proporções travadas' : 'Travar proporções'}
+              <TooltipContent side="top" className="text-xs">
+                {constrainProportions ? 'Proporções vinculadas' : 'Vincular proporções'}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
-        <div className={cn("grid grid-cols-2 gap-3", locked && "opacity-50 pointer-events-none")}>
-          <NumberInput
-            label="Largura"
-            value={Math.round(width)}
+        <div className="grid grid-cols-2 gap-2">
+          <InlineInput
+            value={width}
             onChange={handleWidthChange}
             min={1}
             disabled={locked}
+            unit="L"
           />
-          <NumberInput
-            label="Altura"
-            value={Math.round(height)}
+          <InlineInput
+            value={height}
             onChange={handleHeightChange}
             min={1}
             disabled={locked}
+            unit="A"
           />
         </div>
       </div>
-      
-      {/* Rotation */}
+
+      {/* Rotação */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <RotateCw className="size-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Rotação</span>
-        </div>
-        <div className={cn("grid grid-cols-2 gap-3", locked && "opacity-50 pointer-events-none")}>
-          <NumberInput
-            label="Ângulo"
-            value={Math.round(rotation)}
-            onChange={(v) => onUpdate({ rotation: v })}
-            min={-360}
-            max={360}
-            unit="°"
+        <div className="grid grid-cols-2 items-center gap-4">
+          <Label className="text-sm font-normal text-muted-foreground">Rotação</Label>
+          <Select
+            value={String(rotation)}
+            onValueChange={(v) => onUpdate({ rotation: parseInt(v, 10) })}
             disabled={locked}
-          />
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Espelhar</Label>
-            <div className="flex gap-1">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9"
-                      disabled={locked}
-                    >
-                      <FlipHorizontal className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Espelhar horizontal</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9"
-                      disabled={locked}
-                    >
-                      <FlipVertical className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Espelhar vertical</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          </div>
+          >
+            <SelectTrigger className="w-full h-10 bg-muted/50 border-0">
+              <SelectValue>{rotation}°</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {ROTATION_PRESETS.map((preset) => (
+                <SelectItem key={preset.value} value={String(preset.value)}>
+                  {preset.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+        <Slider
+          value={[rotation]}
+          onValueChange={(v) => onUpdate({ rotation: v[0] })}
+          min={0}
+          max={360}
+          step={1}
+          disabled={locked}
+          className="w-full"
+        />
       </div>
-      
-      {/* Opacity */}
+
+      {/* Opacidade */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Opacidade</span>
-          <span className="text-sm text-muted-foreground">{Math.round(opacity)}%</span>
+        <div className="grid grid-cols-2 items-center gap-4">
+          <Label className="text-sm font-normal text-muted-foreground">Opacidade</Label>
+          <span className="text-sm text-right">{Math.round(opacity)}%</span>
         </div>
         <Slider
           value={[opacity]}
@@ -293,7 +277,7 @@ export function TransformControls({
           max={100}
           step={1}
           disabled={locked}
-          className={cn(locked && "opacity-50")}
+          className="w-full"
         />
       </div>
     </div>
@@ -323,32 +307,22 @@ export function CompactTransform({
 }: CompactTransformProps) {
   return (
     <div className={cn("grid grid-cols-4 gap-2", locked && "opacity-50 pointer-events-none")}>
-      <NumberInput
-        label="X"
-        value={Math.round(x)}
-        onChange={(v) => onUpdate({ x: v })}
-        disabled={locked}
-      />
-      <NumberInput
-        label="Y"
-        value={Math.round(y)}
-        onChange={(v) => onUpdate({ y: v })}
-        disabled={locked}
-      />
-      <NumberInput
-        label="W"
-        value={Math.round(width)}
-        onChange={(v) => onUpdate({ width: v })}
-        min={1}
-        disabled={locked}
-      />
-      <NumberInput
-        label="H"
-        value={Math.round(height)}
-        onChange={(v) => onUpdate({ height: v })}
-        min={1}
-        disabled={locked}
-      />
+      <div>
+        <Label className="text-xs text-muted-foreground mb-1 block">X</Label>
+        <InlineInput value={x} onChange={(v) => onUpdate({ x: v })} disabled={locked} unit="px" />
+      </div>
+      <div>
+        <Label className="text-xs text-muted-foreground mb-1 block">Y</Label>
+        <InlineInput value={y} onChange={(v) => onUpdate({ y: v })} disabled={locked} unit="px" />
+      </div>
+      <div>
+        <Label className="text-xs text-muted-foreground mb-1 block">L</Label>
+        <InlineInput value={width} onChange={(v) => onUpdate({ width: v })} min={1} disabled={locked} unit="px" />
+      </div>
+      <div>
+        <Label className="text-xs text-muted-foreground mb-1 block">A</Label>
+        <InlineInput value={height} onChange={(v) => onUpdate({ height: v })} min={1} disabled={locked} unit="px" />
+      </div>
     </div>
   )
 }

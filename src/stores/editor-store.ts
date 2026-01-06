@@ -313,11 +313,43 @@ export const useEditorStore = create<EditorStore>()(
           
           set((state) => {
             if (!state.template) return
-            state.template.rootNode = updateNodeInTree(
-              state.template.rootNode,
-              nodeId,
-              updates
-            ) as FrameNode
+            
+            // Deep merge helper for immer
+            const deepMerge = (target: Record<string, unknown>, source: Record<string, unknown>) => {
+              for (const key of Object.keys(source)) {
+                const sourceVal = source[key]
+                const targetVal = target[key]
+                
+                if (
+                  sourceVal !== null &&
+                  typeof sourceVal === 'object' &&
+                  !Array.isArray(sourceVal) &&
+                  targetVal !== null &&
+                  typeof targetVal === 'object' &&
+                  !Array.isArray(targetVal)
+                ) {
+                  deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>)
+                } else {
+                  target[key] = sourceVal
+                }
+              }
+            }
+            
+            // Helper to mutate node in place (works with immer)
+            const mutateNode = (node: SceneNode): boolean => {
+              if (node.id === nodeId) {
+                deepMerge(node as unknown as Record<string, unknown>, updates as Record<string, unknown>)
+                return true
+              }
+              if (node.type === 'FRAME') {
+                for (const child of (node as FrameNode).children) {
+                  if (mutateNode(child)) return true
+                }
+              }
+              return false
+            }
+            
+            mutateNode(state.template.rootNode)
             state.isDirty = true
           })
         },

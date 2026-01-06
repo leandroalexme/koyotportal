@@ -62,6 +62,32 @@ import type {
 import { DEFAULT_GOVERNANCE } from '@/types/studio'
 
 // ============================================
+// COLOR SWATCH COMPONENT
+// Note: Dynamic colors require inline styles as Tailwind cannot generate dynamic classes
+// ============================================
+
+interface ColorSwatchProps {
+  color: string
+  disabled?: boolean
+  onClick?: () => void
+}
+
+function ColorSwatch({ color, disabled, onClick }: ColorSwatchProps) {
+  return (
+    <button
+      className={cn(
+        'w-8 h-8 rounded-md border-2 border-transparent transition-colors',
+        !disabled && 'hover:border-foreground/30',
+        disabled && 'opacity-50 cursor-not-allowed'
+      )}
+      style={{ backgroundColor: color }}
+      disabled={disabled}
+      onClick={onClick}
+    />
+  )
+}
+
+// ============================================
 // TYPES
 // ============================================
 
@@ -493,10 +519,9 @@ function StyleControls({
           {allowedColors.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {allowedColors.map((color) => (
-                <button
+                <ColorSwatch
                   key={color}
-                  className="w-8 h-8 rounded-md border-2 border-transparent hover:border-foreground/30 transition-colors"
-                  style={{ backgroundColor: color }}
+                  color={color}
                   disabled={!canEditProperty(governance, 'fills', userRole)}
                 />
               ))}
@@ -505,12 +530,9 @@ function StyleControls({
             <div className="flex items-center gap-2">
               {node.fills.map((fill, i) => (
                 fill.type === 'SOLID' && (
-                  <div
+                  <ColorSwatch
                     key={i}
-                    className="w-8 h-8 rounded-md border"
-                    style={{ 
-                      backgroundColor: `rgba(${fill.color.r}, ${fill.color.g}, ${fill.color.b}, ${fill.color.a})` 
-                    }}
+                    color={`rgba(${fill.color.r}, ${fill.color.g}, ${fill.color.b}, ${fill.color.a})`}
                   />
                 )
               ))}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { 
   renderScene, 
   hitTest, 
@@ -8,6 +8,7 @@ import {
 } from '@/lib/studio/render-engine'
 import { type ComputedLayout } from '@/lib/studio/yoga-adapter'
 import type { FrameNode } from '@/types/studio'
+import { cn } from '@/lib/utils'
 
 interface CanvasRendererProps {
   rootNode: FrameNode
@@ -17,6 +18,7 @@ interface CanvasRendererProps {
   panOffset: { x: number; y: number }
   showGrid?: boolean
   onHover?: (nodeId: string | null) => void
+  onZoomChange?: (zoom: number) => void
 }
 
 export function CanvasRenderer({
@@ -27,13 +29,32 @@ export function CanvasRenderer({
   panOffset,
   showGrid = false,
   onHover,
+  onZoomChange,
 }: CanvasRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const [layoutMap, setLayoutMap] = useState<Map<string, ComputedLayout>>(new Map())
   const [fontsLoaded, setFontsLoaded] = useState(false)
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const animationFrameRef = useRef<number | null>(null)
+  
+  const centerOffset = useMemo(() => {
+    if (containerSize.width === 0 || containerSize.height === 0) {
+      return { x: 0, y: 0 }
+    }
+    
+    const artWidth = rootNode.size.width * zoom
+    const artHeight = rootNode.size.height * zoom
+    
+    const offsetX = (containerSize.width - artWidth) / 2
+    const offsetY = (containerSize.height - artHeight) / 2
+    
+    return {
+      x: offsetX + panOffset.x * zoom,
+      y: offsetY + panOffset.y * zoom,
+    }
+  }, [containerSize, rootNode.size, zoom, panOffset])
   
   useEffect(() => {
     fontEngine.loadBrandFonts().then(() => {
@@ -42,8 +63,27 @@ export function CanvasRenderer({
   }, [])
   
   useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    
+    const updateSize = () => {
+      setContainerSize({
+        width: container.clientWidth,
+        height: container.clientHeight,
+      })
+    }
+    
+    updateSize()
+    
+    const resizeObserver = new ResizeObserver(updateSize)
+    resizeObserver.observe(container)
+    
+    return () => resizeObserver.disconnect()
+  }, [])
+  
+  useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !fontsLoaded) return
+    if (!canvas || !fontsLoaded || containerSize.width === 0) return
     
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
@@ -52,11 +92,10 @@ export function CanvasRenderer({
     animationFrameRef.current = requestAnimationFrame(async () => {
       const newLayoutMap = await renderScene(canvas, rootNode, {
         zoom,
-        panOffset,
+        centerOffset,
         selectedNodeId,
         hoveredNodeId,
         showGrid,
-        backgroundColor: '#1a1a1a',
       })
       
       setLayoutMap(newLayoutMap)
@@ -67,69 +106,49 @@ export function CanvasRenderer({
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [rootNode, zoom, panOffset, selectedNodeId, hoveredNodeId, showGrid, fontsLoaded])
+  }, [rootNode, zoom, centerOffset, selectedNodeId, hoveredNodeId, showGrid, fontsLoaded, containerSize])
   
-  useEffect(() => {
-    const container = containerRef.current
-    const canvas = canvasRef.current
-    if (!container || !canvas) return
-    
-    const resizeObserver = new ResizeObserver(() => {
-      if (fontsLoaded) {
-        renderScene(canvas, rootNode, {
-          zoom,
-          panOffset,
-          selectedNodeId,
-          hoveredNodeId,
-          showGrid,
-          backgroundColor: '#1a1a1a',
-        })
-      }
-    })
-    
-    resizeObserver.observe(container)
-    
-    return () => {
-      resizeObserver.disconnect()
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -0.1 : 0.1
+      const newZoom = Math.max(0.1, Math.min(3, zoom + delta))
+      onZoomChange?.(newZoom)
     }
-  }, [rootNode, zoom, panOffset, selectedNodeId, hoveredNodeId, showGrid, fontsLoaded])
+  }, [zoom, onZoomChange])
   
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
     
     const rect = canvas.getBoundingClientRect()
-    const dpr = window.devicePixelRatio || 1
+    const clickX = e.clientX - rect.left
+    const clickY = e.clientY - rect.top
     
-    const x = (e.clientX - rect.left) * dpr
-    const y = (e.clientY - rect.top) * dpr
+    const artX = (clickX - centerOffset.x) / zoom
+    const artY = (clickY - centerOffset.y) / zoom
     
-    const canvasX = x / dpr
-    const canvasY = y / dpr
-    
-    const result = hitTest(rootNode, layoutMap, { x: canvasX, y: canvasY }, zoom, panOffset)
+    const result = hitTest(rootNode, layoutMap, { x: artX, y: artY }, 1, { x: 0, y: 0 })
     
     if (result) {
       onNodeClick(result.nodeId)
     } else {
       onNodeClick(null)
     }
-  }, [rootNode, layoutMap, zoom, panOffset, onNodeClick])
+  }, [rootNode, layoutMap, zoom, centerOffset, onNodeClick])
   
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
     
     const rect = canvas.getBoundingClientRect()
-    const dpr = window.devicePixelRatio || 1
+    const clickX = e.clientX - rect.left
+    const clickY = e.clientY - rect.top
     
-    const x = (e.clientX - rect.left) * dpr
-    const y = (e.clientY - rect.top) * dpr
+    const artX = (clickX - centerOffset.x) / zoom
+    const artY = (clickY - centerOffset.y) / zoom
     
-    const canvasX = x / dpr
-    const canvasY = y / dpr
-    
-    const result = hitTest(rootNode, layoutMap, { x: canvasX, y: canvasY }, zoom, panOffset)
+    const result = hitTest(rootNode, layoutMap, { x: artX, y: artY }, 1, { x: 0, y: 0 })
     
     const newHoveredId = result?.nodeId ?? null
     
@@ -137,7 +156,7 @@ export function CanvasRenderer({
       setHoveredNodeId(newHoveredId)
       onHover?.(newHoveredId)
     }
-  }, [rootNode, layoutMap, zoom, panOffset, hoveredNodeId, onHover])
+  }, [rootNode, layoutMap, zoom, centerOffset, hoveredNodeId, onHover])
   
   const handleMouseLeave = useCallback(() => {
     setHoveredNodeId(null)
@@ -147,28 +166,25 @@ export function CanvasRenderer({
   return (
     <div 
       ref={containerRef}
-      className="w-full h-full bg-[#1a1a1a] overflow-hidden relative"
+      className="w-full h-full bg-slate-100 overflow-hidden relative"
     >
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-crosshair"
+        className={cn(
+          'w-full h-full cursor-crosshair',
+          '[image-rendering:crisp-edges]'
+        )}
         onClick={handleClick}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        style={{
-          imageRendering: 'crisp-edges',
-        }}
+        onWheel={handleWheel}
       />
       
       {!fontsLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
-          <div className="text-white/50 text-sm">Carregando fontes...</div>
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
+          <div className="text-slate-400 text-sm">Carregando fontes...</div>
         </div>
       )}
-      
-      <div className="absolute bottom-4 left-4 text-white/30 text-xs font-mono">
-        {Math.round(zoom * 100)}% | {rootNode.size.width}×{rootNode.size.height}
-      </div>
     </div>
   )
 }

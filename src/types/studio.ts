@@ -207,6 +207,7 @@ export interface TextStyle {
   fontFamily: string
   fontSize: number
   fontWeight: FontWeight
+  fontStyle: 'normal' | 'italic'
   lineHeight: number | 'AUTO'
   letterSpacing: number
   textAlign: TextAlign
@@ -516,6 +517,7 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
   fontFamily: 'Inter',
   fontSize: 16,
   fontWeight: 400,
+  fontStyle: 'normal',
   lineHeight: 'AUTO',
   letterSpacing: 0,
   textAlign: 'LEFT',
