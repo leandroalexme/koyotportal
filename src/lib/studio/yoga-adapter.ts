@@ -167,77 +167,97 @@ function configureYogaNode(
 ): void {
   const { autoLayout, size, position } = sceneNode
 
-  // Non-FRAME nodes (TEXT, IMAGE, etc.) should ALWAYS be relative when inside auto-layout parent
-  const isNonFrameNode = sceneNode.type !== 'FRAME'
-
   // Position type based on layout mode
-  // Key fix: non-FRAME nodes always participate in auto-layout when parent has it
-  if (parentHasAutoLayout || isNonFrameNode) {
-    // Always relative when parent is auto-layout or this is a leaf node
-    yogaNode.setPositionType(PositionType.Relative)
-  } else if (autoLayout.layoutMode === 'NONE' && !isRoot) {
-    // Only FRAME nodes with layoutMode NONE outside auto-layout are absolute
+  // Key fix: when parent has auto-layout, children participate in flex
+  // When parent does NOT have auto-layout, children use absolute positioning with fixed sizes
+  // Exception: elements with layoutPositioning: 'ABSOLUTE' always use absolute positioning
+  const isAbsolutePositioned = autoLayout.layoutPositioning === 'ABSOLUTE'
+  
+  if (isAbsolutePositioned) {
+    // Elements with ABSOLUTE positioning always use absolute position
     yogaNode.setPositionType(PositionType.Absolute)
     yogaNode.setPosition(Yoga.EDGE_LEFT, position.x)
     yogaNode.setPosition(Yoga.EDGE_TOP, position.y)
+    yogaNode.setWidth(size.width)
+    yogaNode.setHeight(size.height)
+    return // Early return for absolute positioned elements
+  } else if (parentHasAutoLayout) {
+    // When parent has auto-layout, all children are relative (participate in flex)
+    yogaNode.setPositionType(PositionType.Relative)
+  } else if (!isRoot) {
+    // When parent does NOT have auto-layout, children use absolute positioning
+    // This preserves the original Figma positions
+    yogaNode.setPositionType(PositionType.Absolute)
+    yogaNode.setPosition(Yoga.EDGE_LEFT, position.x)
+    yogaNode.setPosition(Yoga.EDGE_TOP, position.y)
+    
+    // For absolute positioned elements, always use fixed size from Figma
+    yogaNode.setWidth(size.width)
+    yogaNode.setHeight(size.height)
+    
+    // Configure flex properties for this node's children if it's a FRAME
+    if (sceneNode.type === 'FRAME') {
+      yogaNode.setFlexDirection(mapLayoutModeToFlexDirection(autoLayout.layoutMode))
+      yogaNode.setJustifyContent(mapAlignmentToJustify(autoLayout.primaryAxisAlignment))
+      yogaNode.setAlignItems(mapAlignmentToAlign(autoLayout.counterAxisAlignment))
+      yogaNode.setFlexWrap(autoLayout.wrap ? Wrap.Wrap : Wrap.NoWrap)
+      yogaNode.setGap(Yoga.GUTTER_ALL, autoLayout.gap)
+      yogaNode.setPadding(Yoga.EDGE_TOP, autoLayout.padding.top)
+      yogaNode.setPadding(Yoga.EDGE_RIGHT, autoLayout.padding.right)
+      yogaNode.setPadding(Yoga.EDGE_BOTTOM, autoLayout.padding.bottom)
+      yogaNode.setPadding(Yoga.EDGE_LEFT, autoLayout.padding.left)
+    }
+    return // Early return for absolute positioned elements
   } else {
     yogaNode.setPositionType(PositionType.Relative)
   }
 
-  // For TEXT nodes, measure text to get intrinsic size
+  // For TEXT nodes, configure sizing
   if (sceneNode.type === 'TEXT') {
     const textNode = sceneNode as TextNode
     const { style, content } = textNode.textProps
 
-    // Calculate line height
-    const lineHeightPx = typeof style.lineHeight === 'number' && style.lineHeight < 10
+    // Calculate line height - lineHeight is a multiplier (e.g., 1.5)
+    const lineHeightPx = typeof style.lineHeight === 'number'
       ? style.fontSize * style.lineHeight
       : style.fontSize * 1.4
 
-    // Measure text with proper width constraint
-    // For FIXED: use explicit size
-    // For FILL: text will get width from parent - use a reasonable default for measurement
-    // For HUG: let text expand naturally
-    let maxWidth: number
-    if (autoLayout.horizontalSizing === 'FIXED' && size.width > 0) {
-      maxWidth = size.width
-    } else if (autoLayout.horizontalSizing === 'FILL') {
-      // For FILL sizing, use size.width if set, otherwise let Yoga handle it
-      // The actual width will be determined by flex layout
-      maxWidth = size.width > 0 ? size.width : 10000
-    } else {
-      // HUG - let text be as wide as content needs
-      maxWidth = 10000
-    }
-
-    const measured = measureText(
-      content,
-      style.fontFamily,
-      style.fontSize,
-      style.fontWeight,
-      maxWidth,
-      lineHeightPx
-    )
-
-    // Set dimensions based on sizing mode
+    // Width sizing
     if (autoLayout.horizontalSizing === 'HUG') {
+      // Measure text to get intrinsic width
+      const measured = measureText(content, style.fontFamily, style.fontSize, style.fontWeight, 10000, lineHeightPx)
       yogaNode.setWidth(measured.width)
     } else if (autoLayout.horizontalSizing === 'FIXED') {
       yogaNode.setWidth(size.width)
     } else if (autoLayout.horizontalSizing === 'FILL') {
-      yogaNode.setFlexGrow(1)
-      yogaNode.setFlexShrink(1)
-      yogaNode.setFlexBasis(0) // Important for proper flex distribution
+      // FILL: use alignSelf stretch to fill parent width
+      yogaNode.setAlignSelf(Align.Stretch)
+      yogaNode.setWidthPercent(100)
     }
 
+    // Height sizing
     if (autoLayout.verticalSizing === 'HUG') {
-      yogaNode.setHeight(measured.height)
+      // For HUG height, we need to estimate based on width
+      // If width is FILL, use a reasonable estimate; actual height will be calculated in render
+      let estimatedWidth: number
+      if (autoLayout.horizontalSizing === 'FIXED') {
+        estimatedWidth = size.width
+      } else if (autoLayout.horizontalSizing === 'FILL') {
+        // Use parent's available width estimate - this will be refined in render
+        // For now, use a generous estimate to avoid clipping
+        estimatedWidth = 1000
+      } else {
+        estimatedWidth = 10000
+      }
+      const measured = measureText(content, style.fontFamily, style.fontSize, style.fontWeight, estimatedWidth, lineHeightPx)
+      // Add some buffer for text that might wrap more
+      yogaNode.setMinHeight(measured.height)
+      yogaNode.setHeightAuto()
     } else if (autoLayout.verticalSizing === 'FIXED') {
       yogaNode.setHeight(size.height)
     } else if (autoLayout.verticalSizing === 'FILL') {
-      yogaNode.setFlexGrow(1)
-      yogaNode.setFlexShrink(1)
-      yogaNode.setFlexBasis(0)
+      yogaNode.setAlignSelf(Align.Stretch)
+      yogaNode.setHeightPercent(100)
     }
 
     return // TEXT nodes don't need flex direction, gap, etc.
@@ -267,9 +287,10 @@ function configureYogaNode(
       yogaNode.setWidthAuto()
       break
     case 'FILL':
+      // FILL width: use alignSelf stretch + flexGrow
+      yogaNode.setAlignSelf(Align.Stretch)
       yogaNode.setFlexGrow(1)
       yogaNode.setFlexShrink(1)
-      yogaNode.setFlexBasis(0) // Use 0 basis for proper flex distribution
       break
   }
 
@@ -282,9 +303,10 @@ function configureYogaNode(
       yogaNode.setHeightAuto()
       break
     case 'FILL':
+      // FILL height: use alignSelf stretch + flexGrow
+      yogaNode.setAlignSelf(Align.Stretch)
       yogaNode.setFlexGrow(1)
       yogaNode.setFlexShrink(1)
-      yogaNode.setFlexBasis(0)
       break
   }
 
@@ -335,6 +357,8 @@ function extractLayout(
 ): ComputedLayout {
   const layout = yogaNode.getComputedLayout()
 
+  // For absolute positioned elements, layout.left/top already contains the position
+  // relative to parent, so we just add parentX/parentY
   const absoluteX = parentX + layout.left
   const absoluteY = parentY + layout.top
 
@@ -385,42 +409,20 @@ export function calculateLayout(
   containerWidth?: number,
   containerHeight?: number
 ): ComputedLayout {
-  // Build Yoga tree
-  const yogaRoot = buildYogaTree(rootNode, true)
-
   // Set root dimensions
   const width = containerWidth ?? rootNode.size.width
   const height = containerHeight ?? rootNode.size.height
 
+  // PASS 1: Build tree and calculate initial layout to get widths
+  const yogaRoot = buildYogaTree(rootNode, true)
   yogaRoot.setWidth(width)
   yogaRoot.setHeight(height)
-
-  // Calculate layout
   yogaRoot.calculateLayout(width, height, Direction.LTR)
 
-  // DEBUG: Log computed layout for all nodes
-  function logLayoutTree(yogaNode: YogaNode, node: SceneNode, depth: number = 0) {
-    const layout = yogaNode.getComputedLayout()
-    const indent = '  '.repeat(depth)
-    console.log(`${indent}[${node.type}] ${node.name || node.id}: x=${layout.left}, y=${layout.top}, w=${layout.width}, h=${layout.height}`)
-
-    if (node.type === 'FRAME') {
-      const frameNode = node as FrameNode
-      let childIndex = 0
-      frameNode.children.forEach((child) => {
-        if (child.visible) {
-          const childYogaNode = yogaNode.getChild(childIndex)
-          if (childYogaNode) {
-            logLayoutTree(childYogaNode, child, depth + 1)
-            childIndex++
-          }
-        }
-      })
-    }
-  }
-  console.log('=== YOGA LAYOUT DEBUG ===')
-  logLayoutTree(yogaRoot, rootNode)
-  console.log('=========================')
+  // PASS 2: Re-measure TEXT nodes with FILL width and recalculate
+  // This ensures text height is correct based on actual available width
+  remeasureTextNodes(yogaRoot, rootNode)
+  yogaRoot.calculateLayout(width, height, Direction.LTR)
 
   // Extract computed positions
   const computedLayout = extractLayout(yogaRoot, rootNode)
@@ -429,6 +431,57 @@ export function calculateLayout(
   yogaRoot.freeRecursive()
 
   return computedLayout
+}
+
+/**
+ * Re-measure TEXT nodes after initial layout to get correct heights
+ * based on actual computed widths
+ */
+function remeasureTextNodes(yogaNode: YogaNode, sceneNode: SceneNode): void {
+  if (sceneNode.type === 'TEXT') {
+    const textNode = sceneNode as TextNode
+    const { style, content } = textNode.textProps
+    const { autoLayout } = textNode
+
+    // Re-measure if width is FILL (height can be HUG or FILL)
+    if (autoLayout.horizontalSizing === 'FILL') {
+      const computedWidth = yogaNode.getComputedWidth()
+      
+      if (computedWidth > 0 && autoLayout.verticalSizing === 'HUG') {
+        const lineHeightPx = typeof style.lineHeight === 'number'
+          ? style.fontSize * style.lineHeight
+          : style.fontSize * 1.4
+
+        const measured = measureText(
+          content,
+          style.fontFamily,
+          style.fontSize,
+          style.fontWeight,
+          computedWidth,
+          lineHeightPx
+        )
+        
+        // Update height based on actual width
+        yogaNode.setHeight(measured.height)
+      }
+    }
+  }
+
+  // Process children for FRAME nodes
+  if (sceneNode.type === 'FRAME') {
+    const frameNode = sceneNode as FrameNode
+    let childIndex = 0
+
+    frameNode.children.forEach((child) => {
+      if (child.visible) {
+        const childYogaNode = yogaNode.getChild(childIndex)
+        if (childYogaNode) {
+          remeasureTextNodes(childYogaNode, child)
+          childIndex++
+        }
+      }
+    })
+  }
 }
 
 /**

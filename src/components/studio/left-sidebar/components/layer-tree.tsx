@@ -27,7 +27,7 @@ function sceneNodeToLayerData(node: SceneNode): LayerItemData {
     name: node.name,
     type: node.type,
     isVisible: node.visible,
-    isEditable: governance ? (!governance.isContentOnly && governance.editableBy.includes('member')) : true,
+    isEditable: governance ? (!governance.isContentOnly && governance.editableBy?.includes('member')) : true,
     isLocked: node.locked,
   }
 

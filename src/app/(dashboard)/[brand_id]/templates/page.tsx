@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, Plus, Figma, FolderPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -11,6 +11,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { TEMPLATE_FOLDERS, type TemplateFolder } from '@/lib/studio/template-service'
 import { templateRegistry, initializeTemplates } from '@/lib/studio/template-loader'
@@ -19,6 +25,7 @@ import {
   TEMPLATE_FORMATS,
   type Template,
 } from '@/types/studio'
+import { FigmaPicker, type ImportResult } from '@/components/studio/figma-picker'
 
 // Initialize templates
 initializeTemplates()
@@ -322,6 +329,9 @@ export default function TemplatesPage() {
   const router = useRouter()
   const brandId = params.brand_id as string
   
+  // FigmaPicker state
+  const [figmaPickerOpen, setFigmaPickerOpen] = useState(false)
+  
   // Get all templates from registry
   const templates = useMemo(() => {
     const allMeta = templateRegistry.getAllTemplates()
@@ -352,6 +362,15 @@ export default function TemplatesPage() {
     }
   }
   
+  const handleFigmaImportComplete = useCallback((results: ImportResult[]) => {
+    // Pegar o primeiro template importado com sucesso
+    const firstSuccess = results.find(r => r.success)
+    if (firstSuccess) {
+      // Redirecionar para o novo template no editor
+      router.push(`/${brandId}/templates/editor/${firstSuccess.templateId}`)
+    }
+  }, [brandId, router])
+  
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-background">
       {/* Sidebar */}
@@ -361,17 +380,57 @@ export default function TemplatesPage() {
       />
       
       {/* Main Content */}
-      {selectedTemplate ? (
-        <TemplatePreview
-          template={selectedTemplate}
-          templates={templates}
-          currentIndex={selectedIndex}
-          onUseTemplate={handleUseTemplate}
-          onNavigate={handleNavigate}
-        />
-      ) : (
-        <EmptyState />
-      )}
+      <div className="flex-1 flex flex-col">
+        {/* Header with New button */}
+        <div className="flex items-center justify-end p-4 border-b">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="size-4" />
+                New
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem onClick={() => console.log('New folder')}>
+                <FolderPlus className="size-4 mr-3 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">Folder</div>
+                  <div className="text-xs text-muted-foreground">Create a new folder</div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFigmaPickerOpen(true)}>
+                <Figma className="size-4 mr-3 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">Figma</div>
+                  <div className="text-xs text-muted-foreground">Import from Figma designs</div>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        
+        {/* Template Preview */}
+        {selectedTemplate ? (
+          <TemplatePreview
+            template={selectedTemplate}
+            templates={templates}
+            currentIndex={selectedIndex}
+            onUseTemplate={handleUseTemplate}
+            onNavigate={handleNavigate}
+          />
+        ) : (
+          <EmptyState />
+        )}
+      </div>
+      
+      {/* FigmaPicker Dialog */}
+      <FigmaPicker
+        open={figmaPickerOpen}
+        onOpenChange={setFigmaPickerOpen}
+        brandId={brandId}
+        onImportComplete={handleFigmaImportComplete}
+        context="library"
+      />
     </div>
   )
 }

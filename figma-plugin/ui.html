@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+      color: #333;
+      padding: 16px;
+      background: #fff;
+    }
+    
+    h1 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #000;
+    }
+    
+    .description {
+      color: #666;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    
+    .input-group {
+      margin-bottom: 16px;
+    }
+    
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #333;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    
+    input[type="text"]:focus {
+      border-color: #7C3AED;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    
+    button {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: #7C3AED;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #6D28D9;
+    }
+    
+    .btn-primary:disabled {
+      background: #C4B5FD;
+      cursor: not-allowed;
+    }
+    
+    .btn-secondary {
+      background: #F3F4F6;
+      color: #374151;
+    }
+    
+    .btn-secondary:hover {
+      background: #E5E7EB;
+    }
+    
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      display: none;
+    }
+    
+    .status.success {
+      display: block;
+      background: #D1FAE5;
+      color: #065F46;
+    }
+    
+    .status.error {
+      display: block;
+      background: #FEE2E2;
+      color: #991B1B;
+    }
+    
+    .status.loading {
+      display: block;
+      background: #EDE9FE;
+      color: #5B21B6;
+    }
+    
+    .info {
+      margin-top: 16px;
+      padding: 12px;
+      background: #F9FAFB;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #6B7280;
+    }
+    
+    .info ul {
+      margin-top: 8px;
+      padding-left: 16px;
+    }
+    
+    .info li {
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎨 Koyot Exporter</h1>
+  
+  <p class="description">
+    Export your Figma design with full fidelity to Koyot. This plugin captures all data including bullet points, vector paths, and rich text formatting.
+  </p>
+  
+  <div class="input-group">
+    <label for="apiUrl">Koyot API URL</label>
+    <input type="text" id="apiUrl" value="http://localhost:3000/api/figma/plugin-import" placeholder="https://your-app.com/api/figma/plugin-import">
+  </div>
+  
+  <div class="button-group">
+    <button class="btn-secondary" id="previewBtn">Preview Export</button>
+    <button class="btn-primary" id="exportBtn">Send to Koyot</button>
+  </div>
+  
+  <div id="status" class="status"></div>
+  
+  <div class="info">
+    <strong>Instructions:</strong>
+    <ul>
+      <li>Select a frame in Figma</li>
+      <li>Click "Send to Koyot" to export</li>
+      <li>The design will appear in your Koyot editor</li>
+    </ul>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const exportBtn = document.getElementById('exportBtn');
+    const previewBtn = document.getElementById('previewBtn');
+    const apiUrlInput = document.getElementById('apiUrl');
+    
+    function setStatus(message, type) {
+      statusEl.textContent = message;
+      statusEl.className = 'status ' + type;
+    }
+    
+    previewBtn.onclick = () => {
+      setStatus('Generating preview...', 'loading');
+      parent.postMessage({ pluginMessage: { type: 'export' } }, '*');
+    };
+    
+    exportBtn.onclick = () => {
+      const apiUrl = apiUrlInput.value.trim();
+      if (!apiUrl) {
+        setStatus('Please enter the API URL', 'error');
+        return;
+      }
+      
+      setStatus('Exporting design...', 'loading');
+      exportBtn.disabled = true;
+      parent.postMessage({ pluginMessage: { type: 'send-to-koyot', apiUrl } }, '*');
+    };
+    
+    window.onmessage = async (event) => {
+      const msg = event.data.pluginMessage;
+      
+      if (msg.type === 'export-data') {
+        const dataSize = JSON.stringify(msg.data).length;
+        const sizeKB = (dataSize / 1024).toFixed(1);
+        setStatus(`Preview ready! Data size: ${sizeKB} KB. Nodes: ${countNodes(msg.data.rootNode)}`, 'success');
+        console.log('Export data:', msg.data);
+      }
+      
+      if (msg.type === 'send-data') {
+        try {
+          const response = await fetch(msg.apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(msg.data)
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            const baseUrl = msg.apiUrl.replace('/api/figma/plugin-import', '');
+            const editorUrl = baseUrl + '/plugin-import?templateId=' + result.templateId;
+            
+            statusEl.innerHTML = `✓ Exported successfully!<br><br>
+              <strong>Template ID:</strong> ${result.templateId}<br><br>
+              <a href="${editorUrl}" target="_blank" style="color: #7C3AED; text-decoration: underline;">
+                Click here to open in Koyot Editor
+              </a>`;
+            statusEl.className = 'status success';
+          } else {
+            const error = await response.text();
+            setStatus(`Error: ${error}`, 'error');
+          }
+        } catch (e) {
+          setStatus(`Network error: ${e.message}`, 'error');
+        }
+        
+        exportBtn.disabled = false;
+      }
+    };
+    
+    function countNodes(node) {
+      let count = 1;
+      if (node.children) {
+        for (const child of node.children) {
+          count += countNodes(child);
+        }
+      }
+      return count;
+    }
+  </script>
+</body>
+</html>

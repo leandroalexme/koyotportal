@@ -9,7 +9,7 @@
 // BASE TYPES
 // ============================================
 
-export type NodeType = 'FRAME' | 'TEXT' | 'IMAGE' | 'RECTANGLE' | 'ELLIPSE' | 'LINE'
+export type NodeType = 'FRAME' | 'TEXT' | 'IMAGE' | 'RECTANGLE' | 'ELLIPSE' | 'LINE' | 'VECTOR'
 
 export type LayoutMode = 'HORIZONTAL' | 'VERTICAL' | 'NONE'
 
@@ -197,6 +197,9 @@ export interface AutoLayoutProps {
   
   /** Se os filhos devem quebrar linha */
   wrap: boolean
+  
+  /** Posicionamento: AUTO (participa do layout) ou ABSOLUTE (posição fixa) */
+  layoutPositioning?: 'AUTO' | 'ABSOLUTE'
 }
 
 // ============================================
@@ -224,6 +227,16 @@ export interface TextProps {
   editable: boolean
   /** Placeholder quando vazio */
   placeholder?: string
+  /** Opções de lista (bullet points, numeração) */
+  listOptions?: TextListOptions
+  /** Nível de indentação */
+  indentation?: number
+  /** Espaçamento entre parágrafos */
+  paragraphSpacing?: number
+}
+
+export interface TextListOptions {
+  type: 'ORDERED' | 'UNORDERED' | 'NONE'
 }
 
 // ============================================
@@ -386,6 +399,38 @@ export interface LineNode extends BaseNode {
   strokeCap: 'NONE' | 'ROUND' | 'SQUARE'
 }
 
+/**
+ * VectorNode - Representa formas vetoriais criadas com pen tool, pencil, etc.
+ * Usa paths SVG para definir a geometria
+ */
+export interface VectorNode extends BaseNode {
+  type: 'VECTOR'
+  /** Paths SVG que definem a geometria de preenchimento */
+  fillPaths?: VectorPath[]
+  /** Paths SVG que definem a geometria do traçado */
+  strokePaths?: VectorPath[]
+  /** Se true, strokePaths deve ser preenchido (fill) em vez de traçado (stroke) - usado para Dynamic/Brush strokes */
+  strokeIsFilled?: boolean
+  /** Estilo do traçado */
+  strokeCap?: 'NONE' | 'ROUND' | 'SQUARE'
+  /** Junção do traçado */
+  strokeJoin?: 'MITER' | 'BEVEL' | 'ROUND'
+  /** Limite do miter */
+  strokeMiterLimit?: number
+  /** Padrão de traço (dash pattern) */
+  dashPattern?: number[]
+}
+
+/**
+ * Representa um path SVG individual
+ */
+export interface VectorPath {
+  /** Comando SVG path (M, L, C, Q, Z, etc.) */
+  path: string
+  /** Regra de preenchimento */
+  windingRule: 'NONZERO' | 'EVENODD'
+}
+
 // ============================================
 // SCENE NODE (UNION TYPE)
 // ============================================
@@ -397,6 +442,7 @@ export type SceneNode =
   | RectangleNode 
   | EllipseNode 
   | LineNode
+  | VectorNode
 
 // ============================================
 // TEMPLATE TYPES
@@ -468,6 +514,18 @@ export interface Template {
   createdAt: string
   updatedAt: string
   createdBy: string
+  /** Informações de fontes do template */
+  fonts?: TemplateFonts
+}
+
+/** Informações de fontes usadas no template */
+export interface TemplateFonts {
+  /** Fontes do Google Fonts (carregadas via CDN) */
+  googleFonts: Array<{ family: string; weights: number[] }>
+  /** Fontes customizadas (requerem upload) */
+  customFonts: string[]
+  /** URL do Google Fonts CDN para carregar todas as fontes */
+  googleFontsUrl: string | null
 }
 
 // ============================================

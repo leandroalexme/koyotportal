@@ -1,0 +1,5 @@
+{
+  "name": "DesignRuntime Editor",
+  "description": "A high-performance, template-driven design editor using a declarative JSON scene graph and Auto Layout engine.",
+  "requestFramePermissions": []
+}

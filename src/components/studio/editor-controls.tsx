@@ -726,6 +726,7 @@ export function EditorControls({
             
             {selectedNode.type === 'TEXT' && (
               <TextContentEditor
+                key={selectedNode.id}
                 node={selectedNode as TextNode}
                 userRole={userRole}
                 onUpdateContent={(content) => onUpdateTextContent(selectedNode.id, content)}
@@ -781,6 +782,7 @@ export function EditorControls({
           <TabsContent value="content" className="p-4 space-y-4 mt-0">
             {selectedNode.type === 'TEXT' && (
               <TextContentEditor
+                key={selectedNode.id}
                 node={selectedNode as TextNode}
                 userRole={userRole}
                 onUpdateContent={(content) => onUpdateTextContent(selectedNode.id, content)}

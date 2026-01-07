@@ -1,0 +1,14 @@
+{
+  "name": "Koyot Exporter",
+  "id": "koyot-exporter-plugin",
+  "api": "1.0.0",
+  "main": "code.js",
+  "capabilities": [],
+  "enableProposedApi": false,
+  "editorType": ["figma"],
+  "ui": "ui.html",
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "Required to send exported design data to the Koyot application server"
+  }
+}

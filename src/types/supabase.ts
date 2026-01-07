@@ -98,6 +98,107 @@ export type Database = {
           },
         ]
       }
+      asset_folders: {
+        Row: {
+          brand_id: string
+          color: string | null
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          name: string
+          parent_folder_id: string | null
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          parent_folder_id?: string | null
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          parent_folder_id?: string | null
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_folders_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_folders_parent_folder_id_fkey"
+            columns: ["parent_folder_id"]
+            isOneToOne: false
+            referencedRelation: "asset_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_transformations: {
+        Row: {
+          asset_id: string
+          created_at: string
+          file_size: number | null
+          format: string
+          grayscale: boolean | null
+          height: number | null
+          id: string
+          quality: number | null
+          transformed_path: string
+          width: number | null
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          file_size?: number | null
+          format?: string
+          grayscale?: boolean | null
+          height?: number | null
+          id?: string
+          quality?: number | null
+          transformed_path: string
+          width?: number | null
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          file_size?: number | null
+          format?: string
+          grayscale?: boolean | null
+          height?: number | null
+          id?: string
+          quality?: number | null
+          transformed_path?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_transformations_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assets: {
         Row: {
           ai_colors: string[] | null
@@ -105,10 +206,13 @@ export type Database = {
           ai_tags: string[] | null
           alt_text: string | null
           brand_id: string
+          category: string | null
           created_at: string
+          dimensions: Json | null
           file_path: string
           file_size: number
           file_type: string
+          folder_name: string | null
           height: number | null
           id: string
           is_archived: boolean | null
@@ -116,7 +220,10 @@ export type Database = {
           mime_type: string
           name: string
           parent_asset_id: string | null
+          processing_status: string | null
+          source: string | null
           tags: string[] | null
+          thumbnail_path: string | null
           updated_at: string
           uploaded_by: string
           version: number | null
@@ -128,10 +235,13 @@ export type Database = {
           ai_tags?: string[] | null
           alt_text?: string | null
           brand_id: string
+          category?: string | null
           created_at?: string
+          dimensions?: Json | null
           file_path: string
           file_size: number
           file_type: string
+          folder_name?: string | null
           height?: number | null
           id?: string
           is_archived?: boolean | null
@@ -139,7 +249,10 @@ export type Database = {
           mime_type: string
           name: string
           parent_asset_id?: string | null
+          processing_status?: string | null
+          source?: string | null
           tags?: string[] | null
+          thumbnail_path?: string | null
           updated_at?: string
           uploaded_by: string
           version?: number | null
@@ -151,10 +264,13 @@ export type Database = {
           ai_tags?: string[] | null
           alt_text?: string | null
           brand_id?: string
+          category?: string | null
           created_at?: string
+          dimensions?: Json | null
           file_path?: string
           file_size?: number
           file_type?: string
+          folder_name?: string | null
           height?: number | null
           id?: string
           is_archived?: boolean | null
@@ -162,7 +278,10 @@ export type Database = {
           mime_type?: string
           name?: string
           parent_asset_id?: string | null
+          processing_status?: string | null
+          source?: string | null
           tags?: string[] | null
+          thumbnail_path?: string | null
           updated_at?: string
           uploaded_by?: string
           version?: number | null
@@ -237,6 +356,80 @@ export type Database = {
             columns: ["page_id"]
             isOneToOne: false
             referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_fonts: {
+        Row: {
+          brand_id: string
+          category: string | null
+          created_at: string
+          family: string
+          figma_postscript_name: string | null
+          file_name: string
+          file_path: string
+          file_size: number
+          format: string
+          google_fonts_url: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          source: string
+          source_url: string | null
+          style: string
+          updated_at: string
+          uploaded_by: string | null
+          weight: number
+        }
+        Insert: {
+          brand_id: string
+          category?: string | null
+          created_at?: string
+          family: string
+          figma_postscript_name?: string | null
+          file_name: string
+          file_path: string
+          file_size: number
+          format: string
+          google_fonts_url?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          source?: string
+          source_url?: string | null
+          style?: string
+          updated_at?: string
+          uploaded_by?: string | null
+          weight?: number
+        }
+        Update: {
+          brand_id?: string
+          category?: string | null
+          created_at?: string
+          family?: string
+          figma_postscript_name?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          format?: string
+          google_fonts_url?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          source?: string
+          source_url?: string | null
+          style?: string
+          updated_at?: string
+          uploaded_by?: string | null
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_fonts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
             referencedColumns: ["id"]
           },
         ]
@@ -371,15 +564,178 @@ export type Database = {
           },
         ]
       }
+      template_versions: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          root_node: Json
+          template_id: string
+          version_number: number
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          root_node: Json
+          template_id: string
+          version_number: number
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          root_node?: Json
+          template_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      templates: {
+        Row: {
+          ai_generated: boolean | null
+          brand_id: string
+          category: Database["public"]["Enums"]["template_category"]
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          format: Database["public"]["Enums"]["template_format"]
+          id: string
+          is_archived: boolean | null
+          is_public: boolean | null
+          name: string
+          root_node: Json
+          schema_version: number
+          tags: string[] | null
+          thumbnail_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_generated?: boolean | null
+          brand_id: string
+          category?: Database["public"]["Enums"]["template_category"]
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          format?: Database["public"]["Enums"]["template_format"]
+          id?: string
+          is_archived?: boolean | null
+          is_public?: boolean | null
+          name: string
+          root_node: Json
+          schema_version?: number
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_generated?: boolean | null
+          brand_id?: string
+          category?: Database["public"]["Enums"]["template_category"]
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          format?: Database["public"]["Enums"]["template_format"]
+          id?: string
+          is_archived?: boolean | null
+          is_public?: boolean | null
+          name?: string
+          root_node?: Json
+          schema_version?: number
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "templates_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_template_version: {
+        Args: { p_comment?: string; p_template_id: string }
+        Returns: string
+      }
+      get_asset_url: {
+        Args: {
+          p_asset_id: string
+          p_format?: string
+          p_grayscale?: boolean
+          p_height?: number
+          p_width?: number
+        }
+        Returns: string
+      }
+      restore_template_version: {
+        Args: { p_version_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
+      asset_category:
+        | "logo"
+        | "image"
+        | "typography"
+        | "document"
+        | "icon"
+        | "video"
+        | "other"
+      asset_source: "upload" | "ai_generated" | "imported" | "transformed"
       member_role: "owner" | "admin" | "editor" | "viewer"
+      template_category:
+        | "social_instagram"
+        | "social_linkedin"
+        | "social_twitter"
+        | "social_facebook"
+        | "print_business_card"
+        | "print_flyer"
+        | "print_poster"
+        | "print_one_pager"
+        | "digital_web_banner"
+        | "digital_email_header"
+        | "digital_newsletter"
+        | "presentation"
+        | "report"
+        | "other"
+      template_format:
+        | "instagram_post"
+        | "instagram_story"
+        | "instagram_reel"
+        | "linkedin_post"
+        | "linkedin_banner"
+        | "twitter_post"
+        | "facebook_post"
+        | "facebook_cover"
+        | "business_card"
+        | "flyer_a5"
+        | "flyer_a4"
+        | "poster_a3"
+        | "one_pager"
+        | "web_banner_leaderboard"
+        | "web_banner_medium"
+        | "web_banner_skyscraper"
+        | "email_header"
+        | "custom"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -507,7 +863,53 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      asset_category: [
+        "logo",
+        "image",
+        "typography",
+        "document",
+        "icon",
+        "video",
+        "other",
+      ],
+      asset_source: ["upload", "ai_generated", "imported", "transformed"],
       member_role: ["owner", "admin", "editor", "viewer"],
+      template_category: [
+        "social_instagram",
+        "social_linkedin",
+        "social_twitter",
+        "social_facebook",
+        "print_business_card",
+        "print_flyer",
+        "print_poster",
+        "print_one_pager",
+        "digital_web_banner",
+        "digital_email_header",
+        "digital_newsletter",
+        "presentation",
+        "report",
+        "other",
+      ],
+      template_format: [
+        "instagram_post",
+        "instagram_story",
+        "instagram_reel",
+        "linkedin_post",
+        "linkedin_banner",
+        "twitter_post",
+        "facebook_post",
+        "facebook_cover",
+        "business_card",
+        "flyer_a5",
+        "flyer_a4",
+        "poster_a3",
+        "one_pager",
+        "web_banner_leaderboard",
+        "web_banner_medium",
+        "web_banner_skyscraper",
+        "email_header",
+        "custom",
+      ],
     },
   },
 } as const

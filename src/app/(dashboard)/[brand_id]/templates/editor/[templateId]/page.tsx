@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ChevronDown, Minus, Plus } from 'lucide-react'
+import { ChevronDown, Minus, Plus, Figma } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -22,6 +22,7 @@ import {
   type Template,
   flattenNodes,
 } from '@/types/studio'
+import { FigmaPicker, type ImportResult } from '@/components/studio/figma-picker'
 
 // ============================================
 // MOCK PAGES DATA
@@ -110,12 +111,25 @@ function ZoomControls({ zoom, onZoomIn, onZoomOut }: ZoomControlsProps) {
 
 interface EditorHeaderProps {
   template: Template
+  brandId: string
   onBack: () => void
   onExport: () => void
   onPublish: () => void
 }
 
-function EditorHeader({ template, onBack, onExport, onPublish }: EditorHeaderProps) {
+function EditorHeader({ template, brandId, onBack, onExport, onPublish }: EditorHeaderProps) {
+  const [figmaPickerOpen, setFigmaPickerOpen] = useState(false)
+  const router = useRouter()
+  
+  const handleImportComplete = useCallback((results: ImportResult[]) => {
+    // Pegar o primeiro template importado com sucesso
+    const firstSuccess = results.find(r => r.success)
+    if (firstSuccess) {
+      // Redirecionar para o novo template
+      router.push(`/${brandId}/templates/editor/${firstSuccess.templateId}`)
+    }
+  }, [brandId, router])
+  
   return (
     <header className="h-12 border-b flex items-center justify-between px-4 bg-background shrink-0">
       <div className="flex items-center gap-3">
@@ -147,6 +161,10 @@ function EditorHeader({ template, onBack, onExport, onPublish }: EditorHeaderPro
       </div>
       
       <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setFigmaPickerOpen(true)}>
+          <Figma className="size-4" />
+          Importar
+        </Button>
         <Button variant="ghost" size="sm" onClick={onExport}>
           Export
         </Button>
@@ -154,6 +172,14 @@ function EditorHeader({ template, onBack, onExport, onPublish }: EditorHeaderPro
           Publish
         </Button>
       </div>
+      
+      <FigmaPicker
+        open={figmaPickerOpen}
+        onOpenChange={setFigmaPickerOpen}
+        brandId={brandId}
+        onImportComplete={handleImportComplete}
+        context="editor"
+      />
     </header>
   )
 }
@@ -169,32 +195,96 @@ export default function TemplateEditorPage() {
   const templateId = params.templateId as string
   
   // EditorStore - centralized state
-  const {
-    template,
-    selectedNodeIds,
-    zoom,
-    panOffset,
-    ui,
-    setTemplate,
-    selectNode,
-    clearSelection,
-    setZoom,
-    zoomIn,
-    zoomOut,
-    updateNode,
-    undo,
-    redo,
-  } = useEditorStore()
+  // Use selectors to avoid unnecessary re-renders
+  const template = useEditorStore((state) => state.template)
+  const selectedNodeIds = useEditorStore((state) => state.selectedNodeIds)
+  const zoom = useEditorStore((state) => state.zoom)
+  const panOffset = useEditorStore((state) => state.panOffset)
+  const ui = useEditorStore((state) => state.ui)
+  const setTemplate = useEditorStore((state) => state.setTemplate)
+  const selectNode = useEditorStore((state) => state.selectNode)
+  const clearSelection = useEditorStore((state) => state.clearSelection)
+  const setZoom = useEditorStore((state) => state.setZoom)
+  const setPanOffset = useEditorStore((state) => state.setPanOffset)
+  const zoomIn = useEditorStore((state) => state.zoomIn)
+  const zoomOut = useEditorStore((state) => state.zoomOut)
+  const updateNode = useEditorStore((state) => state.updateNode)
+  const undo = useEditorStore((state) => state.undo)
+  const redo = useEditorStore((state) => state.redo)
   
+    
   const [selectedPageId, setSelectedPageId] = useState<string>('page-1')
   
-  // Initialize template from mock data
+  // Initialize template - first try IndexedDB, then API, then mocks
   useEffect(() => {
-    const mockTemplate = getMockTemplateById(templateId) || MOCK_TEMPLATES[0]
-    if (mockTemplate && (!template || template.id !== mockTemplate.id)) {
-      setTemplate(mockTemplate)
+    let cancelled = false
+    
+    async function loadTemplate() {
+      // 1. Tentar buscar do IndexedDB (templates importados - persiste entre reloads)
+      try {
+        const { getTemplate, initTemplateDB } = await import('@/lib/studio/template-db')
+        await initTemplateDB()
+        
+        const dbTemplate = await getTemplate(templateId)
+        if (dbTemplate && !cancelled) {
+          console.log('[Editor] Template carregado do IndexedDB:', dbTemplate.name)
+          setTemplate(dbTemplate)
+          return
+        }
+      } catch (err) {
+        console.log('[Editor] IndexedDB não disponível:', err)
+      }
+      
+      // 2. Tentar buscar da API
+      try {
+        const response = await fetch(`/api/templates?id=${templateId}`)
+        if (response.ok && !cancelled) {
+          const data = await response.json()
+          if (data.success && data.template) {
+            console.log('[Editor] Template carregado da API:', data.template.name)
+            setTemplate(data.template)
+            return
+          }
+        }
+      } catch {
+        console.log('[Editor] API não disponível')
+      }
+      
+      // 3. Fallback para templates de mock
+      if (!cancelled) {
+        const mockTemplate = getMockTemplateById(templateId) || MOCK_TEMPLATES[0]
+        if (mockTemplate) {
+          console.log('[Editor] Usando template mock:', mockTemplate.name)
+          setTemplate(mockTemplate)
+        }
+      }
     }
-  }, [templateId, template, setTemplate])
+    
+    loadTemplate()
+    
+    return () => { cancelled = true }
+  }, [templateId, setTemplate])
+  
+  // Auto-save template when it changes - TEMPORARILY DISABLED FOR DEBUGGING
+  // useEffect(() => {
+  //   if (!template || template.id !== templateId) return
+  //   
+  //   const saveTimer = setTimeout(async () => {
+  //     try {
+  //       const { updateTemplate, templateExists } = await import('@/lib/studio/template-db')
+  //       const exists = await templateExists(templateId)
+  //       
+  //       if (exists) {
+  //         await updateTemplate(templateId, template)
+  //         console.log('[Editor] Auto-saved template:', template.name)
+  //       }
+  //     } catch (err) {
+  //       console.warn('[Editor] Auto-save failed:', err)
+  //     }
+  //   }, 2000) // Debounce de 2 segundos
+  //   
+  //   return () => clearTimeout(saveTimer)
+  // }, [template, templateId])
   
   // Get pages for the template
   const pages = useMemo(() => {
@@ -204,6 +294,12 @@ export default function TemplateEditorPage() {
   
   // Selected node from store
   const selectedNodeId = selectedNodeIds[0] ?? null
+  
+  // Stabilize rootNode reference - only change when rootNode.id changes
+  // This prevents unnecessary re-renders during zoom/pan
+  const stableRootNode = useMemo(() => {
+    return template?.rootNode ?? null
+  }, [template?.rootNode?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   
   const selectedNode = useMemo(() => {
     if (!selectedNodeId || !template) return null
@@ -281,6 +377,7 @@ export default function TemplateEditorPage() {
     <div className="flex flex-col h-screen bg-background overflow-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
       <EditorHeader 
         template={template}
+        brandId={brandId}
         onBack={handleBack}
         onExport={handleExport}
         onPublish={handlePublish}
@@ -296,16 +393,20 @@ export default function TemplateEditorPage() {
           onSelectNode={(nodeId) => nodeId ? selectNode(nodeId) : clearSelection()}
         />
         
-        <main className="flex-1 relative overflow-hidden bg-zinc-200">
-          <CanvasRenderer
-            rootNode={template.rootNode}
-            selectedNodeId={selectedNodeId}
-            onNodeClick={handleNodeClick}
-            zoom={zoom}
-            panOffset={panOffset}
-            showGrid={ui.showGrid}
-            onZoomChange={setZoom}
-          />
+        <main className="flex-1 relative overflow-hidden">
+          {stableRootNode && (
+            <CanvasRenderer
+              rootNode={stableRootNode}
+              fonts={template?.fonts}
+              selectedNodeId={selectedNodeId}
+              onNodeClick={handleNodeClick}
+              zoom={zoom}
+              panOffset={panOffset}
+              showGrid={ui.showGrid}
+              onZoomChange={setZoom}
+              onPanChange={setPanOffset}
+            />
+          )}
           
           <ZoomControls 
             zoom={zoom}

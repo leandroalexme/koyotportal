@@ -22,7 +22,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -109,24 +108,25 @@ export function LayerItem({
     onToggleLock?.(layer.id)
   }
 
-  // Inline toggle buttons JSX
+  // Inline toggle buttons JSX - usando span com role para evitar button dentro de button
   const toggleButtons = (
     <div className="flex items-center gap-0.5 opacity-0 group-hover/layer:opacity-100 transition-opacity">
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-5"
+            <span
+              role="button"
+              tabIndex={0}
+              className="inline-flex items-center justify-center size-5 rounded-md hover:bg-accent cursor-pointer"
               onClick={handleToggleVisibility}
+              onKeyDown={(e) => e.key === 'Enter' && handleToggleVisibility(e as unknown as React.MouseEvent)}
             >
               {layer.isVisible ? (
                 <Eye className="size-3 text-muted-foreground" />
               ) : (
                 <EyeOff className="size-3 text-muted-foreground" />
               )}
-            </Button>
+            </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
             {layer.isVisible ? 'Ocultar' : 'Mostrar'}
@@ -137,18 +137,19 @@ export function LayerItem({
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-5"
+            <span
+              role="button"
+              tabIndex={0}
+              className="inline-flex items-center justify-center size-5 rounded-md hover:bg-accent cursor-pointer"
               onClick={handleToggleLock}
+              onKeyDown={(e) => e.key === 'Enter' && handleToggleLock(e as unknown as React.MouseEvent)}
             >
               {layer.isLocked ? (
                 <Lock className="size-3 text-muted-foreground" />
               ) : (
                 <Unlock className="size-3 text-muted-foreground" />
               )}
-            </Button>
+            </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
             {layer.isLocked ? 'Desbloquear' : 'Bloquear'}

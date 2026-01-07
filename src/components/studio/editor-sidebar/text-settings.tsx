@@ -270,7 +270,7 @@ function AlignmentTabs({ value, onChange, disabled }: AlignmentTabsProps) {
 export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsProps) {
   const [content, setContent] = useState(node.textProps.content)
   const [isContentLocked, setIsContentLocked] = useState(
-    node.governance?.lockedProps.includes('content') ?? false
+    node.governance?.lockedProps?.includes('content') ?? false
   )
   
   const debouncedContent = useDebounce(content, 300)
@@ -306,23 +306,27 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
   // Map select index (0-3) to slider value (0-6)
   const selectIndexToSlider = (index: number) => index * 2
 
-  // Update content when debounced value changes
+  // Sync local state when node content changes externally (e.g., undo/redo)
+  // Note: Component is keyed by node.id, so this only handles same-node updates
   useEffect(() => {
-    if (debouncedContent !== node.textProps.content) {
+    if (node.textProps.content !== initialContentRef.current && node.textProps.content !== content) {
+      setContent(node.textProps.content)
+      initialContentRef.current = node.textProps.content
+    }
+  }, [node.textProps.content, content])
+
+  // Update node content when debounced value changes
+  useEffect(() => {
+    if (debouncedContent !== initialContentRef.current) {
       onUpdate(node.id, {
         textProps: {
           ...node.textProps,
           content: debouncedContent,
         },
       })
+      initialContentRef.current = debouncedContent
     }
   }, [debouncedContent, node.id, node.textProps, onUpdate])
-
-  // Sync local state when node changes externally
-  useEffect(() => {
-    setContent(node.textProps.content)
-    initialContentRef.current = node.textProps.content
-  }, [node.id, node.textProps.content])
 
   const handleFontChange = useCallback((fontFamily: string) => {
     onUpdate(node.id, {

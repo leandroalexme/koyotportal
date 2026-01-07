@@ -78,6 +78,7 @@ export function EditorSidebar({
     return (
       <aside className={SIDEBAR_CLASSES}>
         <TextSettings
+          key={selectedNode.id}
           node={selectedNode as TextNode}
           userRole={userRole}
           onUpdate={onUpdateNode}

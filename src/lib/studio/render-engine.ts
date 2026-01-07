@@ -9,6 +9,7 @@ import type {
   ImageNode,
   RectangleNode,
   EllipseNode,
+  VectorNode,
   Fill,
   SolidFill,
   GradientFill,
@@ -112,6 +113,68 @@ class FontEngine {
     await Promise.allSettled(promises)
   }
   
+  /**
+   * Carrega fontes de um template (Google Fonts ou customizadas)
+   */
+  async loadTemplateFonts(fonts: {
+    googleFonts?: Array<{ family: string; weights: number[] }>
+    customFonts?: string[]
+    googleFontsUrl?: string | null
+  }): Promise<void> {
+    if (!fonts) return
+    
+    // Carregar via URL única do Google Fonts (mais eficiente)
+    if (fonts.googleFontsUrl) {
+      await this.loadGoogleFontUrl(fonts.googleFontsUrl)
+    }
+    
+    // Carregar cada fonte do Google individualmente se não tiver URL única
+    if (fonts.googleFonts && !fonts.googleFontsUrl) {
+      for (const font of fonts.googleFonts) {
+        const url = `https://fonts.googleapis.com/css2?family=${font.family.replace(/\s+/g, '+')}:wght@${font.weights.join(';')}&display=swap`
+        await this.loadGoogleFontUrl(url)
+      }
+    }
+    
+    // Marcar fontes como carregadas
+    if (fonts.googleFonts) {
+      for (const font of fonts.googleFonts) {
+        for (const weight of font.weights) {
+          this.loadedFonts.add(`${font.family}-${weight}`)
+        }
+      }
+    }
+    
+    console.log('[FontEngine] Template fonts loaded:', {
+      googleFonts: fonts.googleFonts?.map(f => f.family) || [],
+      customFonts: fonts.customFonts || [],
+    })
+  }
+  
+  /**
+   * Carrega uma URL do Google Fonts
+   */
+  private async loadGoogleFontUrl(url: string): Promise<void> {
+    const linkId = 'gfont-' + url.split('family=')[1]?.split('&')[0]?.replace(/[^a-zA-Z0-9]/g, '-') || 'custom'
+    if (document.getElementById(linkId)) return
+    
+    return new Promise((resolve, reject) => {
+      const link = document.createElement('link')
+      link.id = linkId
+      link.rel = 'stylesheet'
+      link.href = url
+      link.onload = () => {
+        console.log('[FontEngine] Loaded Google Font:', url)
+        resolve()
+      }
+      link.onerror = () => {
+        console.warn('[FontEngine] Failed to load font:', url)
+        reject(new Error('Failed to load font'))
+      }
+      document.head.appendChild(link)
+    })
+  }
+  
   getLoadedFonts(): Set<string> {
     return new Set(this.loadedFonts)
   }
@@ -121,17 +184,41 @@ export const fontEngine = new FontEngine()
 
 class ImageLoader {
   private cache: Map<string, HTMLImageElement> = new Map()
+  private failedUrls: Set<string> = new Set() // Cache failed URLs to avoid retrying
+  private loadingPromises: Map<string, Promise<HTMLImageElement | null>> = new Map()
   
   async loadImage(src: string): Promise<HTMLImageElement | null> {
     if (!src) return null
+    
+    // Return cached image
     if (this.cache.has(src)) return this.cache.get(src)!
-    return new Promise((resolve) => {
+    
+    // Don't retry failed URLs
+    if (this.failedUrls.has(src)) return null
+    
+    // Return existing loading promise to avoid duplicate requests
+    if (this.loadingPromises.has(src)) {
+      return this.loadingPromises.get(src)!
+    }
+    
+    const loadPromise = new Promise<HTMLImageElement | null>((resolve) => {
       const img = new Image()
       img.crossOrigin = 'anonymous'
-      img.onload = () => { this.cache.set(src, img); resolve(img) }
-      img.onerror = () => resolve(null)
+      img.onload = () => { 
+        this.cache.set(src, img)
+        this.loadingPromises.delete(src)
+        resolve(img) 
+      }
+      img.onerror = () => { 
+        this.failedUrls.add(src) // Mark as failed
+        this.loadingPromises.delete(src)
+        resolve(null) 
+      }
       img.src = src
     })
+    
+    this.loadingPromises.set(src, loadPromise)
+    return loadPromise
   }
   
   getCache(): Map<string, HTMLImageElement> { return this.cache }
@@ -143,7 +230,15 @@ function colorToRgba(color: Color): string {
   return 'rgba(' + color.r + ', ' + color.g + ', ' + color.b + ', ' + color.a + ')'
 }
 
-function applyFill(ctx: CanvasRenderingContext2D, fill: Fill, x: number, y: number, w: number, h: number): void {
+function applyFill(
+  ctx: CanvasRenderingContext2D, 
+  fill: Fill, 
+  x: number, 
+  y: number, 
+  w: number, 
+  h: number,
+  loadedImages?: Map<string, HTMLImageElement>
+): void {
   ctx.save()
   if (fill.type === 'SOLID') {
     ctx.fillStyle = colorToRgba((fill as SolidFill).color)
@@ -157,6 +252,27 @@ function applyFill(ctx: CanvasRenderingContext2D, fill: Fill, x: number, y: numb
       gf.stops.forEach(s => gradient.addColorStop(s.position, colorToRgba(s.color)))
       ctx.fillStyle = gradient
       ctx.fillRect(x, y, w, h)
+    }
+  } else if (fill.type === 'IMAGE' && loadedImages) {
+    const imageFill = fill as { type: 'IMAGE'; src?: string; scaleMode?: string }
+    if (imageFill.src) {
+      const img = loadedImages.get(imageFill.src)
+      if (img) {
+        // Draw image fill with proper scaling
+        const imgAspect = img.width / img.height
+        const boxAspect = w / h
+        let drawX = x, drawY = y, drawW = w, drawH = h
+        
+        if (imageFill.scaleMode === 'FIT') {
+          if (imgAspect > boxAspect) { drawH = w / imgAspect; drawY = y + (h - drawH) / 2 }
+          else { drawW = h * imgAspect; drawX = x + (w - drawW) / 2 }
+        } else { // FILL (default) - cover the area
+          if (imgAspect > boxAspect) { drawW = h * imgAspect; drawX = x + (w - drawW) / 2 }
+          else { drawH = w / imgAspect; drawY = y + (h - drawH) / 2 }
+        }
+        
+        ctx.drawImage(img, drawX, drawY, drawW, drawH)
+      }
     }
   }
   ctx.restore()
@@ -177,7 +293,7 @@ function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w:
 }
 
 function renderFrame(node: FrameNode, context: RenderContext): void {
-  const { ctx, layoutMap, zoom, selectedNodeId, hoveredNodeId, dpr, centerOffset } = context
+  const { ctx, layoutMap, loadedImages, zoom, dpr, centerOffset } = context
   const layout = layoutMap.get(node.id)
   if (!layout) return
   const x = layout.x * zoom * dpr + centerOffset.x * dpr
@@ -189,32 +305,22 @@ function renderFrame(node: FrameNode, context: RenderContext): void {
   ctx.globalAlpha = node.opacity
   if (node.clipsContent && radius > 0) { drawRoundedRect(ctx, x, y, width, height, radius); ctx.clip() }
   node.fills.forEach(fill => {
-    if (radius > 0) { drawRoundedRect(ctx, x, y, width, height, radius); if (fill.type === 'SOLID') { ctx.fillStyle = colorToRgba(fill.color); ctx.fill() } }
-    else { applyFill(ctx, fill, x, y, width, height) }
+    if (fill.type === 'IMAGE') {
+      applyFill(ctx, fill, x, y, width, height, loadedImages)
+    } else if (radius > 0) { 
+      drawRoundedRect(ctx, x, y, width, height, radius)
+      if (fill.type === 'SOLID') { ctx.fillStyle = colorToRgba(fill.color); ctx.fill() }
+    } else { 
+      applyFill(ctx, fill, x, y, width, height, loadedImages) 
+    }
   })
   if (node.border) { ctx.strokeStyle = colorToRgba(node.border.color); ctx.lineWidth = node.border.width * zoom * dpr; drawRoundedRect(ctx, x, y, width, height, radius); ctx.stroke() }
   node.children.forEach(child => renderNode(child, context))
   ctx.restore()
-  if (selectedNodeId === node.id) {
-    ctx.save()
-    ctx.strokeStyle = '#0066FF'
-    ctx.lineWidth = 2 * dpr
-    drawRoundedRect(ctx, x - 1, y - 1, width + 2, height + 2, radius)
-    ctx.stroke()
-    ctx.restore()
-  } else if (hoveredNodeId === node.id) {
-    ctx.save()
-    ctx.strokeStyle = 'rgba(0, 102, 255, 0.4)'
-    ctx.lineWidth = 1 * dpr
-    ctx.setLineDash([4 * dpr, 4 * dpr])
-    drawRoundedRect(ctx, x, y, width, height, radius)
-    ctx.stroke()
-    ctx.restore()
-  }
 }
 
 function renderText(node: TextNode, context: RenderContext): void {
-  const { ctx, layoutMap, zoom, selectedNodeId, dpr, centerOffset } = context
+  const { ctx, layoutMap, zoom, dpr, centerOffset } = context
   const layout = layoutMap.get(node.id)
   if (!layout) return
   const x = layout.x * zoom * dpr + centerOffset.x * dpr
@@ -238,21 +344,24 @@ function renderText(node: TextNode, context: RenderContext): void {
   const textFill = node.fills.find(f => f.type === 'SOLID') as SolidFill | undefined
   ctx.fillStyle = textFill ? colorToRgba(textFill.color) : '#000000'
   
-  // Line height calculation
+  // Line height calculation - lineHeight is a multiplier (e.g., 1.5)
   const lineHeight = style.lineHeight === 'AUTO' 
     ? fontSize * 1.2 
-    : (typeof style.lineHeight === 'number' && style.lineHeight < 10 
-        ? fontSize * style.lineHeight 
-        : style.lineHeight * zoom * dpr)
+    : fontSize * style.lineHeight
+  
+  // Indentation and paragraph spacing
+  const indentation = (node.textProps.indentation ?? 0) * zoom * dpr
+  const paragraphSpacing = (node.textProps.paragraphSpacing ?? 0) * zoom * dpr
   
   // Word wrap and render - handle newlines first
   const paragraphs = content.split('\n')
-  const lines: string[] = []
+  const lineData: { text: string; isParagraphEnd: boolean }[] = []
   
   // Process each paragraph
-  paragraphs.forEach((paragraph) => {
+  paragraphs.forEach((paragraph, paragraphIndex) => {
     if (paragraph === '') {
-      lines.push('') // Empty line for paragraph break
+      // Empty paragraph - add spacing
+      lineData.push({ text: '', isParagraphEnd: true })
       return
     }
     
@@ -263,45 +372,58 @@ function renderText(node: TextNode, context: RenderContext): void {
     words.forEach((word) => {
       const testLine = line + (line ? ' ' : '') + word
       const testWidth = measureTextWithSpacing(ctx, testLine, letterSpacing)
-      if (testWidth > width && line) {
-        lines.push(line)
+      if (testWidth > width - indentation && line) {
+        lineData.push({ text: line, isParagraphEnd: false })
         line = word
       } else {
         line = testLine
       }
     })
-    if (line) lines.push(line)
+    // Last line of paragraph
+    if (line) {
+      const isLastParagraph = paragraphIndex === paragraphs.length - 1
+      lineData.push({ text: line, isParagraphEnd: !isLastParagraph })
+    }
   })
   
   // Render each line
   let currentY = y
-  lines.forEach((lineText, lineIndex) => {
-    const isLastLine = lineIndex === lines.length - 1
+  lineData.forEach((line, lineIndex) => {
+    const lineText = line.text
+    const isLastLine = lineIndex === lineData.length - 1
     
-    if (style.textAlign === 'JUSTIFY' && !isLastLine && lines.length > 1) {
+    // Skip empty lines but add paragraph spacing
+    if (lineText === '' && line.isParagraphEnd) {
+      currentY += paragraphSpacing > 0 ? paragraphSpacing : lineHeight
+      return
+    }
+    
+    // Calculate base X position with indentation
+    const baseX = x + indentation
+    const effectiveWidth = width - indentation
+    
+    if (style.textAlign === 'JUSTIFY' && !isLastLine && lineData.length > 1 && lineText.trim()) {
       // Justify: distribute words across width
-      renderJustifiedLine(ctx, lineText, x, currentY, width, letterSpacing)
+      renderJustifiedLine(ctx, lineText, baseX, currentY, effectiveWidth, letterSpacing)
     } else {
       // Normal alignment
-      let textX = x
+      let textX = baseX
       if (style.textAlign === 'CENTER') {
-        textX = x + (width - measureTextWithSpacing(ctx, lineText, letterSpacing)) / 2
+        textX = baseX + (effectiveWidth - measureTextWithSpacing(ctx, lineText, letterSpacing)) / 2
       } else if (style.textAlign === 'RIGHT') {
-        textX = x + width - measureTextWithSpacing(ctx, lineText, letterSpacing)
+        textX = baseX + effectiveWidth - measureTextWithSpacing(ctx, lineText, letterSpacing)
       }
       renderTextWithSpacing(ctx, lineText, textX, currentY, letterSpacing)
     }
+    
     currentY += lineHeight
+    // Add paragraph spacing after paragraph ends
+    if (line.isParagraphEnd && paragraphSpacing > 0) {
+      currentY += paragraphSpacing
+    }
   })
   
   ctx.restore()
-  if (selectedNodeId === node.id) {
-    ctx.save()
-    ctx.strokeStyle = '#0066FF'
-    ctx.lineWidth = 2 * dpr
-    ctx.strokeRect(x - 1, y - 1, width + 2, height + 2)
-    ctx.restore()
-  }
 }
 
 // Helper: measure text with letter spacing
@@ -353,7 +475,7 @@ function renderJustifiedLine(ctx: CanvasRenderingContext2D, text: string, x: num
 }
 
 function renderImage(node: ImageNode, context: RenderContext): void {
-  const { ctx, layoutMap, loadedImages, zoom, selectedNodeId, dpr, centerOffset } = context
+  const { ctx, layoutMap, loadedImages, zoom, dpr, centerOffset } = context
   const layout = layoutMap.get(node.id)
   if (!layout) return
   const x = layout.x * zoom * dpr + centerOffset.x * dpr
@@ -368,31 +490,65 @@ function renderImage(node: ImageNode, context: RenderContext): void {
     let drawX = x, drawY = y, drawW = width, drawH = height
     const imgAspect = img.width / img.height
     const boxAspect = width / height
+    
     if (node.imageProps.objectFit === 'FIT') {
+      // Contain - fit inside container
       if (imgAspect > boxAspect) { drawH = width / imgAspect; drawY = y + (height - drawH) / 2 }
       else { drawW = height * imgAspect; drawX = x + (width - drawW) / 2 }
+      ctx.drawImage(img, drawX, drawY, drawW, drawH)
     } else if (node.imageProps.objectFit === 'CROP') {
-      if (imgAspect > boxAspect) { drawW = height * imgAspect; drawX = x + (width - drawW) * node.imageProps.objectPosition.x }
-      else { drawH = width / imgAspect; drawY = y + (height - drawH) * node.imageProps.objectPosition.y }
+      // Crop with transform matrix from Figma
+      // imageTransform is [[scaleX, skewX, tx], [skewY, scaleY, ty]]
+      const transform = (node.imageProps as { imageTransform?: [[number, number, number], [number, number, number]] }).imageTransform
+      
+      if (transform) {
+        // Extract scale and translation from transform matrix
+        const scaleX = transform[0][0]
+        const scaleY = transform[1][1]
+        const tx = transform[0][2]
+        const ty = transform[1][2]
+        
+        // Calculate the scaled image dimensions
+        // scaleX/scaleY represent how much of the image is visible (e.g., 0.5 = 50% visible)
+        drawW = width / scaleX
+        drawH = height / scaleY
+        
+        // tx/ty are the offset in normalized coordinates (0-1)
+        // They represent where the top-left of the visible area starts on the image
+        drawX = x - (tx * drawW)
+        drawY = y - (ty * drawH)
+      } else {
+        // Fallback to position-based crop
+        if (imgAspect > boxAspect) { drawW = height * imgAspect; drawX = x + (width - drawW) * node.imageProps.objectPosition.x }
+        else { drawH = width / imgAspect; drawY = y + (height - drawH) * node.imageProps.objectPosition.y }
+      }
+      ctx.drawImage(img, drawX, drawY, drawW, drawH)
+    } else if (node.imageProps.objectFit === 'TILE') {
+      // Tile - repeat the image
+      const scalingFactor = (node.imageProps as { scalingFactor?: number }).scalingFactor || 1
+      const tileW = img.width * scalingFactor * zoom * dpr
+      const tileH = img.height * scalingFactor * zoom * dpr
+      for (let ty = y; ty < y + height; ty += tileH) {
+        for (let tx = x; tx < x + width; tx += tileW) {
+          ctx.drawImage(img, tx, ty, tileW, tileH)
+        }
+      }
+    } else {
+      // FILL (default) - cover the container (like CSS object-fit: cover)
+      if (imgAspect > boxAspect) { drawW = height * imgAspect; drawX = x + (width - drawW) / 2 }
+      else { drawH = width / imgAspect; drawY = y + (height - drawH) / 2 }
+      ctx.drawImage(img, drawX, drawY, drawW, drawH)
     }
-    ctx.drawImage(img, drawX, drawY, drawW, drawH)
   } else {
     ctx.fillStyle = '#f0f0f0'; ctx.fillRect(x, y, width, height)
     ctx.fillStyle = '#999'; ctx.font = (24 * zoom * dpr) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText('IMG', x + width / 2, y + height / 2)
   }
   ctx.restore()
-  if (selectedNodeId === node.id) {
-    ctx.save()
-    ctx.strokeStyle = '#0066FF'
-    ctx.lineWidth = 2 * dpr
-    ctx.strokeRect(x - 1, y - 1, width + 2, height + 2)
-    ctx.restore()
-  }
 }
 
 function renderRectangle(node: RectangleNode, context: RenderContext): void {
-  const { ctx, layoutMap, zoom, selectedNodeId, dpr, centerOffset } = context
+  const { ctx, layoutMap, zoom, dpr, centerOffset } = context
   const layout = layoutMap.get(node.id)
   if (!layout) return
   const x = layout.x * zoom * dpr + centerOffset.x * dpr
@@ -417,18 +573,10 @@ function renderRectangle(node: RectangleNode, context: RenderContext): void {
     }
   }
   ctx.restore()
-  
-  if (selectedNodeId === node.id) {
-    ctx.save()
-    ctx.strokeStyle = '#0066FF'
-    ctx.lineWidth = 2 * dpr
-    ctx.strokeRect(x - 1, y - 1, width + 2, height + 2)
-    ctx.restore()
-  }
 }
 
 function renderEllipse(node: EllipseNode, context: RenderContext): void {
-  const { ctx, layoutMap, zoom, selectedNodeId, dpr, centerOffset } = context
+  const { ctx, layoutMap, zoom, dpr, centerOffset } = context
   const layout = layoutMap.get(node.id)
   if (!layout) return
   const x = layout.x * zoom * dpr + centerOffset.x * dpr
@@ -442,15 +590,83 @@ function renderEllipse(node: EllipseNode, context: RenderContext): void {
   node.fills.forEach(fill => { ctx.beginPath(); ctx.ellipse(cx, cy, width / 2, height / 2, 0, 0, Math.PI * 2); if (fill.type === 'SOLID') { ctx.fillStyle = colorToRgba(fill.color); ctx.fill() } })
   if (node.border) { ctx.beginPath(); ctx.ellipse(cx, cy, width / 2, height / 2, 0, 0, Math.PI * 2); ctx.strokeStyle = colorToRgba(node.border.color); ctx.lineWidth = node.border.width * zoom * dpr; ctx.stroke() }
   ctx.restore()
-  if (selectedNodeId === node.id) {
-    ctx.save()
-    ctx.strokeStyle = '#0066FF'
-    ctx.lineWidth = 2 * dpr
-    ctx.beginPath()
-    ctx.ellipse(cx, cy, width / 2 + 1, height / 2 + 1, 0, 0, Math.PI * 2)
-    ctx.stroke()
-    ctx.restore()
+}
+
+/**
+ * Render a VectorNode using SVG path data
+ */
+function renderVector(node: VectorNode, context: RenderContext): void {
+  const { ctx, layoutMap, zoom, dpr, centerOffset } = context
+  const layout = layoutMap.get(node.id)
+  if (!layout) return
+  
+  const x = layout.x * zoom * dpr + centerOffset.x * dpr
+  const y = layout.y * zoom * dpr + centerOffset.y * dpr
+  const scaleX = (layout.width / node.size.width) * zoom * dpr
+  const scaleY = (layout.height / node.size.height) * zoom * dpr
+  
+  ctx.save()
+  ctx.globalAlpha = node.opacity
+  ctx.translate(x, y)
+  ctx.scale(scaleX, scaleY)
+  
+  // Render fill paths
+  if (node.fillPaths && node.fillPaths.length > 0) {
+    for (const fill of node.fills) {
+      if (fill.type === 'SOLID') {
+        ctx.fillStyle = colorToRgba(fill.color)
+      }
+    }
+    
+    for (const pathData of node.fillPaths) {
+      const path = new Path2D(pathData.path)
+      ctx.fill(path, pathData.windingRule === 'EVENODD' ? 'evenodd' : 'nonzero')
+    }
   }
+  
+  // Render stroke paths
+  // For Dynamic/Brush strokes, strokeGeometry contains filled shapes (not lines to stroke)
+  if (node.strokePaths && node.strokePaths.length > 0) {
+    // Check if this is a Dynamic/Brush stroke (should be filled, not stroked)
+    const strokeIsFilled = node.strokeIsFilled
+    
+    if (strokeIsFilled) {
+      // Fill the stroke paths (for Dynamic/Brush strokes)
+      // Get stroke color from border or use a default
+      const strokeColor = node.border ? colorToRgba(node.border.color) : '#000000'
+      ctx.fillStyle = strokeColor
+      for (const pathData of node.strokePaths) {
+        const path = new Path2D(pathData.path)
+        ctx.fill(path, pathData.windingRule === 'EVENODD' ? 'evenodd' : 'nonzero')
+      }
+    } else if (node.border) {
+      // Normal stroke rendering (requires border)
+      const strokeColor = colorToRgba(node.border.color)
+      ctx.strokeStyle = strokeColor
+      ctx.lineWidth = node.border.width / zoom // Adjust for scale
+      ctx.lineCap = node.strokeCap === 'ROUND' ? 'round' : node.strokeCap === 'SQUARE' ? 'square' : 'butt'
+      ctx.lineJoin = node.strokeJoin === 'ROUND' ? 'round' : node.strokeJoin === 'BEVEL' ? 'bevel' : 'miter'
+      if (node.strokeMiterLimit) ctx.miterLimit = node.strokeMiterLimit
+      if (node.dashPattern && node.dashPattern.length > 0) {
+        ctx.setLineDash(node.dashPattern)
+      }
+      
+      for (const pathData of node.strokePaths) {
+        const path = new Path2D(pathData.path)
+        ctx.stroke(path)
+      }
+    }
+  } else if (node.border && node.fillPaths && node.fillPaths.length > 0) {
+    // If no stroke paths but has border, stroke the fill paths
+    ctx.strokeStyle = colorToRgba(node.border.color)
+    ctx.lineWidth = node.border.width / zoom
+    for (const pathData of node.fillPaths) {
+      const path = new Path2D(pathData.path)
+      ctx.stroke(path)
+    }
+  }
+  
+  ctx.restore()
 }
 
 function renderNode(node: SceneNode, context: RenderContext): void {
@@ -461,9 +677,49 @@ function renderNode(node: SceneNode, context: RenderContext): void {
     case 'IMAGE': renderImage(node as ImageNode, context); break
     case 'RECTANGLE': renderRectangle(node as RectangleNode, context); break
     case 'ELLIPSE': renderEllipse(node as EllipseNode, context); break
+    case 'VECTOR': renderVector(node as VectorNode, context); break
   }
 }
 
+/**
+ * Collect all image sources from the scene tree
+ * Includes IMAGE nodes and FRAME nodes with image fills
+ */
+function collectImageSources(node: SceneNode): string[] {
+  const sources: string[] = []
+  
+  // Collect from IMAGE nodes
+  if (node.type === 'IMAGE') {
+    const imageNode = node as ImageNode
+    if (imageNode.imageProps?.src) {
+      sources.push(imageNode.imageProps.src)
+    }
+  }
+  
+  // Collect from FRAME nodes (image fills and children)
+  if (node.type === 'FRAME') {
+    const frameNode = node as FrameNode
+    
+    // Check for image fills
+    for (const fill of frameNode.fills) {
+      if (fill.type === 'IMAGE') {
+        const imageFill = fill as { type: 'IMAGE'; src?: string }
+        if (imageFill.src) {
+          sources.push(imageFill.src)
+        }
+      }
+    }
+    
+    // Recurse into children
+    for (const child of frameNode.children) {
+      sources.push(...collectImageSources(child))
+    }
+  }
+  
+  return sources
+}
+
+// Legacy function for backward compatibility
 function collectImageNodes(node: SceneNode): ImageNode[] {
   const images: ImageNode[] = []
   if (node.type === 'IMAGE') images.push(node as ImageNode)
@@ -494,6 +750,62 @@ function drawArtboardShadow(ctx: CanvasRenderingContext2D, x: number, y: number,
   ctx.restore()
 }
 
+// Cache for layout calculations to avoid recalculating on every render
+let cachedLayoutRootId: string | null = null
+let cachedLayoutMap: Map<string, ComputedLayout> | null = null
+let cachedRootNodeHash: string | null = null
+
+// Simple hash function to detect structural changes in rootNode
+function hashRootNode(rootNode: FrameNode): string {
+  // Hash based on node count and root dimensions - fast approximation
+  let nodeCount = 0
+  function countNodes(node: SceneNode): void {
+    nodeCount++
+    if (node.type === 'FRAME') {
+      (node as FrameNode).children.forEach(countNodes)
+    }
+  }
+  countNodes(rootNode)
+  return `${rootNode.id}-${rootNode.size.width}-${rootNode.size.height}-${nodeCount}`
+}
+
+/**
+ * Calculate layout only - call this when rootNode changes
+ */
+export function calculateSceneLayout(rootNode: FrameNode): Map<string, ComputedLayout> {
+  const newHash = hashRootNode(rootNode)
+  
+  // Return cached layout if rootNode hasn't changed
+  if (cachedLayoutRootId === rootNode.id && cachedLayoutMap && cachedRootNodeHash === newHash) {
+    // Using cached layout
+    return cachedLayoutMap
+  }
+  
+  // Recalculating layout
+  
+  // Calculate new layout
+  const computedLayout = calculateLayout(rootNode)
+  const layoutMap = createLayoutMap(computedLayout)
+  
+  // Cache the result
+  cachedLayoutRootId = rootNode.id
+  cachedLayoutMap = layoutMap
+  cachedRootNodeHash = newHash
+  
+  // Layout calculated
+  
+  return layoutMap
+}
+
+/**
+ * Clear the layout cache - call when template changes
+ */
+export function clearLayoutCache(): void {
+  cachedLayoutRootId = null
+  cachedLayoutMap = null
+  cachedRootNodeHash = null
+}
+
 export async function renderScene(
   canvas: HTMLCanvasElement,
   rootNode: FrameNode,
@@ -503,6 +815,7 @@ export async function renderScene(
     selectedNodeId?: string | null
     hoveredNodeId?: string | null
     showGrid?: boolean
+    layoutMap?: Map<string, ComputedLayout> // Optional pre-calculated layout
   } = {}
 ): Promise<Map<string, ComputedLayout>> {
   const ctx = canvas.getContext('2d')
@@ -512,30 +825,24 @@ export async function renderScene(
   const zoom = options.zoom ?? 1
   const centerOffset = options.centerOffset ?? { x: 0, y: 0 }
   
+  // renderScene called
+  
   const displayWidth = canvas.clientWidth
   const displayHeight = canvas.clientHeight
   canvas.width = displayWidth * dpr
   canvas.height = displayHeight * dpr
   
-  ctx.fillStyle = '#f8fafc'
+  ctx.fillStyle = '#e4e4e7' // zinc-300
   ctx.fillRect(0, 0, canvas.width, canvas.height)
   
-  if (options.showGrid) {
-    drawGrid(ctx, canvas.width, canvas.height, zoom, centerOffset, dpr)
-  }
-  
-  const computedLayout = calculateLayout(rootNode)
-  const layoutMap = createLayoutMap(computedLayout)
+  // Use provided layoutMap or calculate (with caching)
+  const layoutMap = options.layoutMap ?? calculateSceneLayout(rootNode)
   
   const loadedImages = imageLoader.getCache()
-  const imageNodes = collectImageNodes(rootNode)
-  await Promise.all(imageNodes.map(n => n.imageProps.src ? imageLoader.loadImage(n.imageProps.src) : null))
   
-  const artX = centerOffset.x * dpr
-  const artY = centerOffset.y * dpr
-  const artW = rootNode.size.width * zoom * dpr
-  const artH = rootNode.size.height * zoom * dpr
-  drawArtboardShadow(ctx, artX, artY, artW, artH, dpr)
+  // Collect all image sources (from IMAGE nodes and FRAME fills)
+  const imageSources = collectImageSources(rootNode)
+  await Promise.all(imageSources.map(src => imageLoader.loadImage(src)))
   
   const context: RenderContext = {
     ctx,

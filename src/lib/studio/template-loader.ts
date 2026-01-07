@@ -13,6 +13,8 @@ import { templateRegistry, categoryToFolderId } from './template-service'
 import { eqiBusinessCardTemplate } from '@/data/templates/eqi/business-card'
 import { eqiLetterheadTemplate } from '@/data/templates/eqi/letterhead'
 import { eqiEmailSignatureTemplate } from '@/data/templates/eqi/email-signature'
+import { eqiFinancialReportTemplate } from '@/data/templates/eqi/financial-report-v2'
+import { eqiFinancialReportV3Template } from '@/data/templates/eqi/financial-report-v3'
 
 // ============================================
 // TEMPLATE LOADER
@@ -30,6 +32,8 @@ export function initializeTemplates(): void {
   templateRegistry.register(eqiBusinessCardTemplate, categoryToFolderId(eqiBusinessCardTemplate.category))
   templateRegistry.register(eqiLetterheadTemplate, categoryToFolderId(eqiLetterheadTemplate.category))
   templateRegistry.register(eqiEmailSignatureTemplate, categoryToFolderId(eqiEmailSignatureTemplate.category))
+  templateRegistry.register(eqiFinancialReportTemplate, categoryToFolderId(eqiFinancialReportTemplate.category))
+  templateRegistry.register(eqiFinancialReportV3Template, categoryToFolderId(eqiFinancialReportV3Template.category))
   
   initialized = true
 }

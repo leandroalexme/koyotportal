@@ -17,30 +17,14 @@ const EQI_BRAND_ID = 'a0295b8d-c0f9-49db-b839-8a6021d3ecf7'
 
 // EQI Brand Colors
 const PRIMARY = { r: 1, g: 46, b: 35, a: 1 }       // #012E23 Deep Forest
-const SECONDARY = { r: 39, g: 215, b: 149, a: 1 }  // #27D795 Growth Green
 const SURFACE = { r: 255, g: 255, b: 255, a: 1 }   // White
 const TEXT_MAIN = { r: 1, g: 46, b: 35, a: 1 }
-const TEXT_MUTED = { r: 1, g: 46, b: 35, a: 0.6 }
-const DIVIDER = { r: 1, g: 46, b: 35, a: 0.15 }
 
-// Shared autoLayout configs for TEXT and content nodes
-// Note: For leaf nodes (TEXT), layoutMode doesn't affect layout since they have no children
-// But we keep it consistent for future-proofing
+// Shared autoLayout configs
 const FILL_HUG = {
-  layoutMode: 'VERTICAL' as const, // Changed from NONE - allows proper flex participation
+  layoutMode: 'NONE' as const,
   horizontalSizing: 'FILL' as const,
   verticalSizing: 'HUG' as const,
-  primaryAxisAlignment: 'START' as const,
-  counterAxisAlignment: 'START' as const,
-  padding: { top: 0, right: 0, bottom: 0, left: 0 },
-  gap: 0,
-  wrap: false,
-}
-
-const FILL_FILL = {
-  layoutMode: 'VERTICAL' as const, // Changed from NONE
-  horizontalSizing: 'FILL' as const,
-  verticalSizing: 'FILL' as const,
   primaryAxisAlignment: 'START' as const,
   counterAxisAlignment: 'START' as const,
   padding: { top: 0, right: 0, bottom: 0, left: 0 },
@@ -83,35 +67,6 @@ const logoText: TextNode = {
     },
     editable: false,
   },
-}
-
-const dividerLine: FrameNode = {
-  id: 'lh-divider',
-  name: 'Divider',
-  type: 'FRAME',
-  visible: true,
-  locked: true,
-  opacity: 1,
-  blendMode: 'NORMAL',
-  position: { x: 0, y: 0 },
-  size: { width: 0, height: 2 },
-  rotation: 0,
-  cornerRadius: 0,
-  fills: [{ type: 'SOLID', color: PRIMARY }],
-  shadows: [],
-  autoLayout: {
-    layoutMode: 'NONE',
-    horizontalSizing: 'FILL',
-    verticalSizing: 'FIXED',
-    primaryAxisAlignment: 'START',
-    counterAxisAlignment: 'START',
-    padding: { top: 0, right: 0, bottom: 0, left: 0 },
-    gap: 0,
-    wrap: false,
-  },
-  clipsContent: false,
-  children: [],
-  governance: DEFAULT_GOVERNANCE,
 }
 
 // ============================================
@@ -270,12 +225,12 @@ const bodyContainer: FrameNode = {
     verticalSizing: 'FILL',
     primaryAxisAlignment: 'START',
     counterAxisAlignment: 'START',
-    padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    padding: { top: 40, right: 0, bottom: 0, left: 0 }, // Top padding instead of divider
     gap: 24,
     wrap: false,
   },
   clipsContent: false,
-  children: [bodyTitle, dividerLine, bodyClause1, bodyClause2, bodyClause3],
+  children: [bodyTitle, bodyClause1, bodyClause2, bodyClause3], // Removed dividerLine
   governance: DEFAULT_GOVERNANCE,
 }
 
@@ -292,14 +247,14 @@ const sigLine1: FrameNode = {
   opacity: 1,
   blendMode: 'NORMAL',
   position: { x: 0, y: 0 },
-  size: { width: 0, height: 1 },
+  size: { width: 200, height: 1 },
   rotation: 0,
   cornerRadius: 0,
   fills: [{ type: 'SOLID', color: TEXT_MAIN }],
   shadows: [],
   autoLayout: {
     layoutMode: 'NONE',
-    horizontalSizing: 'FILL',
+    horizontalSizing: 'FIXED',
     verticalSizing: 'FIXED',
     primaryAxisAlignment: 'START',
     counterAxisAlignment: 'START',
@@ -383,14 +338,14 @@ const sigLine2: FrameNode = {
   opacity: 1,
   blendMode: 'NORMAL',
   position: { x: 0, y: 0 },
-  size: { width: 0, height: 1 },
+  size: { width: 200, height: 1 },
   rotation: 0,
   cornerRadius: 0,
   fills: [{ type: 'SOLID', color: TEXT_MAIN }],
   shadows: [],
   autoLayout: {
     layoutMode: 'NONE',
-    horizontalSizing: 'FILL',
+    horizontalSizing: 'FIXED',
     verticalSizing: 'FIXED',
     primaryAxisAlignment: 'START',
     counterAxisAlignment: 'START',
