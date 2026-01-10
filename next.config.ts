@@ -16,6 +16,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Exclude canvaskit-wasm from server-side bundling
+  serverExternalPackages: ['canvaskit-wasm'],
+  // Turbopack config - resolve Node.js modules for browser
+  turbopack: {
+    resolveAlias: {
+      // Polyfill Node.js modules for browser (canvaskit-wasm needs these)
+      fs: { browser: './src/lib/polyfills/empty.js' },
+      path: { browser: './src/lib/polyfills/empty.js' },
+    },
+  },
 };
 
 export default nextConfig;

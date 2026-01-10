@@ -18,7 +18,7 @@ import {
   SelectionRenderer, 
   hitTest as selectionHitTest,
 } from './selection'
-import { AutoLayoutHandlesRenderer } from './auto-layout'
+import { AutoLayoutHandlesRenderer, autoLayoutState } from './auto-layout'
 
 // Constants
 const MIN_ZOOM = 0.1
@@ -88,6 +88,7 @@ export class CanvasEngine {
   private resizeObserver: ResizeObserver | null = null
   private destroyed: boolean = false
   private engineId: number
+  private autoLayoutStateUnsubscribe: (() => void) | null = null
   
   // Callbacks
   private onZoomChange?: (zoom: number) => void
@@ -119,6 +120,11 @@ export class CanvasEngine {
       this.render()
     })
     this.selectionManager.on('hoverChange', () => {
+      this.render()
+    })
+    
+    // Listen to auto-layout state changes (for sidebar editing feedback)
+    this.autoLayoutStateUnsubscribe = autoLayoutState.subscribe(() => {
       this.render()
     })
     
@@ -623,11 +629,12 @@ export class CanvasEngine {
   // ============================================
   
   setRootNode(rootNode: FrameNode) {
-    if (this.rootNode.id !== rootNode.id) {
-      this.rootNode = rootNode
-      this.layoutCache = null // Clear cache when rootNode changes
-      this.render()
-    }
+    // Always update rootNode and re-render when called
+    // This ensures edits from sidebar are reflected in canvas
+    this.rootNode = rootNode
+    this.layoutCache = null // Clear cache to recalculate layout
+    this.selectionManager.setRootNode(rootNode) // Update selection manager
+    this.render()
   }
   
   setSelectedNodeId(nodeId: string | null) {
@@ -677,6 +684,7 @@ export class CanvasEngine {
     this.destroyed = true
     this.unbindEvents()
     this.resizeObserver?.disconnect()
+    this.autoLayoutStateUnsubscribe?.()
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId)
       this.animationFrameId = null

@@ -1,5 +1,6 @@
 import { ColorBlock, TypographyBlock } from '@/components/blocks'
 import { Separator } from '@/components/ui/separator'
+import { MockupShowcase } from '@/components/studio/mockup-viewer'
 
 const brandColors = [
   { name: 'Primary Black', hex: '#0A0A0A', usage: 'Headlines, CTAs' },
@@ -68,6 +69,16 @@ export default function IdentityPage() {
 
       <section id="color">
         <ColorBlock title="Color Palette" colors={brandColors} />
+      </section>
+
+      <Separator className="my-12" />
+
+      <section id="mockups">
+        <MockupShowcase
+          title="Brand in Action"
+          description="Veja como sua marca aparece em diferentes contextos e aplicações"
+          categories={['business-card', 'device', 'billboard', 'social-media']}
+        />
       </section>
     </div>
   )

@@ -16,6 +16,7 @@ import type {
   Color,
 } from '@/types/studio'
 import { calculateLayout, createLayoutMap, type ComputedLayout } from './yoga-adapter'
+import { textOverflowManager } from './text-overflow'
 
 export interface FontConfig {
   family: string
@@ -145,10 +146,7 @@ class FontEngine {
       }
     }
     
-    console.log('[FontEngine] Template fonts loaded:', {
-      googleFonts: fonts.googleFonts?.map(f => f.family) || [],
-      customFonts: fonts.customFonts || [],
-    })
+    // Fonts loaded silently
   }
   
   /**
@@ -163,10 +161,7 @@ class FontEngine {
       link.id = linkId
       link.rel = 'stylesheet'
       link.href = url
-      link.onload = () => {
-        console.log('[FontEngine] Loaded Google Font:', url)
-        resolve()
-      }
+      link.onload = () => resolve()
       link.onerror = () => {
         console.warn('[FontEngine] Failed to load font:', url)
         reject(new Error('Failed to load font'))
@@ -323,22 +318,61 @@ function renderText(node: TextNode, context: RenderContext): void {
   const { ctx, layoutMap, zoom, dpr, centerOffset } = context
   const layout = layoutMap.get(node.id)
   if (!layout) return
+  
+  // Final render positions (with zoom and dpr)
   const x = layout.x * zoom * dpr + centerOffset.x * dpr
   const y = layout.y * zoom * dpr + centerOffset.y * dpr
-  const width = layout.width * zoom * dpr
-  const height = layout.height * zoom * dpr
+  const scaledWidth = layout.width * zoom * dpr
+  
+  // Original dimensions (without zoom) for word wrap calculation
+  const originalWidth = layout.width
+  const originalHeight = layout.height
+  let originalFontSize = node.textProps.style.fontSize
+  const originalLetterSpacing = node.textProps.style.letterSpacing ?? 0
+  const originalIndentation = node.textProps.indentation ?? 0
+  
+  const { style, content } = node.textProps
+  
+  // Auto-size font: calcula altura máxima baseada no tamanho original da fonte
+  // Para textos com HUG, usamos uma altura estimada baseada em linhas permitidas
+  // Isso evita que o texto vaze quando o usuário digita além do esperado
+  const lineHeightMultiplier = style.lineHeight === 'AUTO' ? 1.2 : style.lineHeight
+  const singleLineHeight = originalFontSize * lineHeightMultiplier
+  
+  // Estima quantas linhas o texto original deveria ter (máximo 3 linhas para títulos, mais para textos longos)
+  const estimatedMaxLines = originalFontSize >= 24 ? 2 : (originalFontSize >= 16 ? 3 : 5)
+  const maxAllowedHeight = singleLineHeight * estimatedMaxLines
+  
+  // Usa a menor altura entre: layout calculado, altura fixa do nó, ou altura estimada
+  const effectiveMaxHeight = node.autoLayout.verticalSizing === 'FIXED' 
+    ? originalHeight 
+    : Math.min(originalHeight, maxAllowedHeight)
+  
+  if (content && originalWidth > 0 && effectiveMaxHeight > 0) {
+    const autoSizeResult = textOverflowManager.calculateForNode(
+      node.id,
+      content,
+      originalFontSize,
+      style.fontFamily,
+      style.fontWeight,
+      originalLetterSpacing,
+      style.lineHeight,
+      originalWidth - originalIndentation,
+      effectiveMaxHeight
+    )
+    
+    // Aplica o ajuste se necessário
+    if (autoSizeResult.isAdjusted) {
+      originalFontSize = autoSizeResult.fontSize
+    }
+  }
+  
   ctx.save()
   ctx.globalAlpha = node.opacity
-  const { style, content } = node.textProps
-  const fontSize = style.fontSize * zoom * dpr
+  const fontSize = originalFontSize * zoom * dpr
   
   // Build font string with fontStyle (italic/normal)
   const fontStyle = style.fontStyle === 'italic' ? 'italic ' : ''
-  ctx.font = fontStyle + style.fontWeight + ' ' + fontSize + 'px "' + style.fontFamily + '", sans-serif'
-  ctx.textBaseline = 'top'
-  
-  // Letter spacing
-  const letterSpacing = (style.letterSpacing ?? 0) * zoom * dpr
   
   // Text fill color
   const textFill = node.fills.find(f => f.type === 'SOLID') as SolidFill | undefined
@@ -349,18 +383,21 @@ function renderText(node: TextNode, context: RenderContext): void {
     ? fontSize * 1.2 
     : fontSize * style.lineHeight
   
-  // Indentation and paragraph spacing
-  const indentation = (node.textProps.indentation ?? 0) * zoom * dpr
+  // Indentation and paragraph spacing (scaled for render)
+  const indentation = originalIndentation * zoom * dpr
   const paragraphSpacing = (node.textProps.paragraphSpacing ?? 0) * zoom * dpr
   
-  // Word wrap and render - handle newlines first
+  // CRITICAL: Calculate word wrap using ORIGINAL dimensions (without zoom)
+  // This ensures consistent line breaks regardless of zoom level
+  // Set font to original size for measurement
+  ctx.font = fontStyle + style.fontWeight + ' ' + originalFontSize + 'px "' + style.fontFamily + '", sans-serif'
+  
   const paragraphs = content.split('\n')
   const lineData: { text: string; isParagraphEnd: boolean }[] = []
   
-  // Process each paragraph
+  // Process each paragraph with ORIGINAL dimensions
   paragraphs.forEach((paragraph, paragraphIndex) => {
     if (paragraph === '') {
-      // Empty paragraph - add spacing
       lineData.push({ text: '', isParagraphEnd: true })
       return
     }
@@ -368,23 +405,27 @@ function renderText(node: TextNode, context: RenderContext): void {
     const words = paragraph.split(' ')
     let line = ''
     
-    // Build lines with word wrap
+    // Build lines with word wrap using ORIGINAL width
     words.forEach((word) => {
       const testLine = line + (line ? ' ' : '') + word
-      const testWidth = measureTextWithSpacing(ctx, testLine, letterSpacing)
-      if (testWidth > width - indentation && line) {
+      const testWidth = measureTextWithSpacing(ctx, testLine, originalLetterSpacing)
+      if (testWidth > originalWidth - originalIndentation && line) {
         lineData.push({ text: line, isParagraphEnd: false })
         line = word
       } else {
         line = testLine
       }
     })
-    // Last line of paragraph
     if (line) {
       const isLastParagraph = paragraphIndex === paragraphs.length - 1
       lineData.push({ text: line, isParagraphEnd: !isLastParagraph })
     }
   })
+  
+  // Now set font to SCALED size for actual rendering
+  ctx.font = fontStyle + style.fontWeight + ' ' + fontSize + 'px "' + style.fontFamily + '", sans-serif'
+  ctx.textBaseline = 'top'
+  const letterSpacing = originalLetterSpacing * zoom * dpr
   
   // Render each line
   let currentY = y
@@ -392,21 +433,17 @@ function renderText(node: TextNode, context: RenderContext): void {
     const lineText = line.text
     const isLastLine = lineIndex === lineData.length - 1
     
-    // Skip empty lines but add paragraph spacing
     if (lineText === '' && line.isParagraphEnd) {
       currentY += paragraphSpacing > 0 ? paragraphSpacing : lineHeight
       return
     }
     
-    // Calculate base X position with indentation
     const baseX = x + indentation
-    const effectiveWidth = width - indentation
+    const effectiveWidth = scaledWidth - indentation
     
     if (style.textAlign === 'JUSTIFY' && !isLastLine && lineData.length > 1 && lineText.trim()) {
-      // Justify: distribute words across width
       renderJustifiedLine(ctx, lineText, baseX, currentY, effectiveWidth, letterSpacing)
     } else {
-      // Normal alignment
       let textX = baseX
       if (style.textAlign === 'CENTER') {
         textX = baseX + (effectiveWidth - measureTextWithSpacing(ctx, lineText, letterSpacing)) / 2
@@ -417,7 +454,6 @@ function renderText(node: TextNode, context: RenderContext): void {
     }
     
     currentY += lineHeight
-    // Add paragraph spacing after paragraph ends
     if (line.isParagraphEnd && paragraphSpacing > 0) {
       currentY += paragraphSpacing
     }

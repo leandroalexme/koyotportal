@@ -80,7 +80,7 @@ export function saveImportedTemplate(
   
   setStoredTemplates(filtered)
   
-  console.log('[Template Storage] Saved:', id, template.name)
+  // Template saved silently
   
   return newEntry
 }

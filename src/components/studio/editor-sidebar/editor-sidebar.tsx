@@ -5,9 +5,11 @@ import { TextSettings } from './text-settings'
 import { FrameSettings } from './frame-settings'
 import { ImageSettings } from './image-settings'
 import { ShapeSettings } from './shape-settings'
+import { VectorSettings } from './vector-settings'
 import { ButtonSettings } from './button-settings'
 import { LogoSettings } from './logo-settings'
 import { EmptyStateSidebar } from './empty-state-sidebar'
+import { ElementsOverview } from './elements-overview'
 import { useEditorStore } from '@/stores/editor-store'
 import type { 
   SceneNode, 
@@ -16,7 +18,8 @@ import type {
   ImageNode, 
   RectangleNode, 
   EllipseNode, 
-  LineNode, 
+  LineNode,
+  VectorNode,
   UserRole 
 } from '@/types/studio'
 
@@ -64,11 +67,11 @@ export function EditorSidebar({
   onUpdateNode,
   onDeselectNode,
 }: EditorSidebarProps) {
-  // No node selected - show empty state
+  // No node selected - show elements overview for quick editing
   if (!selectedNode) {
     return (
       <aside className={SIDEBAR_CLASSES}>
-        <EmptyStateSidebar />
+        <ElementsOverview />
       </aside>
     )
   }
@@ -150,40 +153,12 @@ export function EditorSidebar({
     )
   }
 
-  // RECTANGLE node
-  if (selectedNode.type === 'RECTANGLE') {
+  // RECTANGLE, ELLIPSE, LINE, VECTOR nodes - Vector elements
+  if (selectedNode.type === 'RECTANGLE' || selectedNode.type === 'ELLIPSE' || selectedNode.type === 'LINE' || selectedNode.type === 'VECTOR') {
     return (
       <aside className={SIDEBAR_CLASSES}>
-        <ShapeSettings
-          node={selectedNode as RectangleNode}
-          userRole={userRole}
-          onUpdate={onUpdateNode}
-          onBack={onDeselectNode}
-        />
-      </aside>
-    )
-  }
-
-  // ELLIPSE node
-  if (selectedNode.type === 'ELLIPSE') {
-    return (
-      <aside className={SIDEBAR_CLASSES}>
-        <ShapeSettings
-          node={selectedNode as EllipseNode}
-          userRole={userRole}
-          onUpdate={onUpdateNode}
-          onBack={onDeselectNode}
-        />
-      </aside>
-    )
-  }
-
-  // LINE node
-  if (selectedNode.type === 'LINE') {
-    return (
-      <aside className={SIDEBAR_CLASSES}>
-        <ShapeSettings
-          node={selectedNode as LineNode}
+        <VectorSettings
+          node={selectedNode as RectangleNode | EllipseNode | LineNode | VectorNode}
           userRole={userRole}
           onUpdate={onUpdateNode}
           onBack={onDeselectNode}

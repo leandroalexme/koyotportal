@@ -11,7 +11,12 @@ import {
   Lock,
   Unlock,
   Settings2,
+  AlertTriangle,
 } from 'lucide-react'
+import { 
+  subscribeToTextOverflow, 
+  type TextOverflowState 
+} from '@/lib/studio/text-overflow'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -272,6 +277,7 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
   const [isContentLocked, setIsContentLocked] = useState(
     node.governance?.lockedProps?.includes('content') ?? false
   )
+  const [overflowState, setOverflowState] = useState<TextOverflowState | null>(null)
   
   const debouncedContent = useDebounce(content, 300)
   const initialContentRef = useRef(node.textProps.content)
@@ -289,6 +295,15 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
   
   const maxChars = 100
   const charCount = content.length
+
+  // Subscribe to text overflow state changes
+  useEffect(() => {
+    const unsubscribe = subscribeToTextOverflow((states: Map<string, TextOverflowState>) => {
+      const state = states.get(node.id)
+      setOverflowState(state || null)
+    })
+    return unsubscribe
+  }, [node.id])
 
   // Spacing states (synced with sliders)
   // Slider uses 0-6 range for granularity (7 steps), select uses 0-3 (4 options)
@@ -535,6 +550,33 @@ export function TextSettings({ node, userRole, onUpdate, onBack }: TextSettingsP
                   Sugerir com IA
                 </Button>
               </div>
+              
+              {/* Indicador de ajuste de fonte */}
+              {overflowState?.isAdjusted && (
+                <div className="flex items-center gap-2 p-2 mt-2 rounded-md bg-amber-500/10 border border-amber-500/20">
+                  <AlertTriangle className="size-4 text-amber-500 flex-shrink-0" />
+                  <div className="text-xs text-amber-600 dark:text-amber-400">
+                    <span className="font-medium">Fonte ajustada automaticamente</span>
+                    <p className="text-amber-500/80 mt-0.5">
+                      {node.textProps.style.fontSize}px → {Math.round(overflowState.currentFontSize)}px 
+                      ({Math.round(overflowState.reductionPercentage * 100)}% do original)
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Indicador de overflow (texto ainda vazando após ajuste máximo) */}
+              {overflowState?.isOverflowing && (
+                <div className="flex items-center gap-2 p-2 mt-2 rounded-md bg-red-500/10 border border-red-500/20">
+                  <AlertTriangle className="size-4 text-red-500 flex-shrink-0" />
+                  <div className="text-xs text-red-600 dark:text-red-400">
+                    <span className="font-medium">Texto excede o limite</span>
+                    <p className="text-red-500/80 mt-0.5">
+                      Reduza o texto ou aumente a área disponível
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 

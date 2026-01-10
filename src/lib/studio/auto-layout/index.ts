@@ -25,3 +25,15 @@ export type {
   AutoLayoutColors,
   AutoLayoutFrameAttrs,
 } from './types'
+
+// State management
+export {
+  autoLayoutState,
+  activatePaddingHandle,
+  activateGapHandle,
+  deactivateSidebarHandle,
+} from './auto-layout-state'
+
+export type {
+  AutoLayoutActiveState,
+} from './auto-layout-state'

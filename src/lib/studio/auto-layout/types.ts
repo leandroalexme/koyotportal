@@ -39,10 +39,11 @@ export interface AutoLayoutColors {
 }
 
 export const DEFAULT_AUTO_LAYOUT_COLORS: AutoLayoutColors = {
-  padding: '#0D99FF',
-  gap: '#FF00FF',
-  paddingFill: 'rgba(13, 153, 255, 0.08)',
-  gapFill: 'rgba(255, 0, 255, 0.08)',
+  // Cores mais sutis para os handles (menos saturadas)
+  padding: 'rgba(13, 153, 255, 0.3)', // Azul com 60% opacidade
+  gap: 'rgba(200, 0, 200, 0.6)', // Magenta mais suave com 60% opacidade
+  paddingFill: 'rgba(13, 153, 255, 0.05)', // Background muito sutil
+  gapFill: 'rgba(200, 0, 200, 0.05)', // Background muito sutil
 }
 
 export interface AutoLayoutFrameAttrs {

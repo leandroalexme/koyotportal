@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ChevronDown, Minus, Plus, Figma } from 'lucide-react'
+import { ChevronDown, Minus, Plus, Figma, Image } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -23,48 +23,41 @@ import {
   flattenNodes,
 } from '@/types/studio'
 import { FigmaPicker, type ImportResult } from '@/components/studio/figma-picker'
+import { FloatingToolbar } from '@/components/studio/floating-toolbar'
+import { MockupPreviewPanel } from '@/components/studio/mockup-viewer'
 
 // ============================================
-// MOCK PAGES DATA
+// TEMPLATE PAGES - Real pages from template
 // ============================================
 
 function getTemplatePages(template: Template): PageData[] {
-  // In a real app, this would come from the template's artboards/frames
+  // The main template is the first page with its rootNode for preview
   return [
     {
-      id: 'page-1',
+      id: template.id,
       name: template.name,
+      rootNode: template.rootNode,
       width: template.rootNode.size.width,
       height: template.rootNode.size.height,
       isVisible: true,
       isEdited: true,
-      format: 'Instagram Square',
-    },
-    {
-      id: 'page-2',
-      name: 'link-preview-image',
-      width: 1200,
-      height: 628,
-      isVisible: true,
-      format: 'Link Preview',
-    },
-    {
-      id: 'page-3',
-      name: 'email-visual',
-      width: 600,
-      height: 400,
-      isVisible: true,
-      format: 'Email',
-    },
-    {
-      id: 'page-4',
-      name: 'web-banner-header',
-      width: 1920,
-      height: 400,
-      isVisible: false,
-      format: 'Web Banner',
+      format: detectFormat(template.rootNode.size.width, template.rootNode.size.height),
     },
   ]
+}
+
+// Detect format based on dimensions
+function detectFormat(width: number, height: number): string {
+  const ratio = width / height
+  
+  if (Math.abs(ratio - 1) < 0.1) return 'Square'
+  if (Math.abs(ratio - 1.91) < 0.1) return 'Link Preview'
+  if (Math.abs(ratio - 0.5625) < 0.1) return 'Story/Reels'
+  if (Math.abs(ratio - 1.777) < 0.1) return 'Landscape 16:9'
+  if (ratio > 3) return 'Web Banner'
+  if (ratio < 0.5) return 'Portrait'
+  
+  return `${width}x${height}`
 }
 
 // ============================================
@@ -115,9 +108,11 @@ interface EditorHeaderProps {
   onBack: () => void
   onExport: () => void
   onPublish: () => void
+  showMockupPanel: boolean
+  onToggleMockupPanel: () => void
 }
 
-function EditorHeader({ template, brandId, onBack, onExport, onPublish }: EditorHeaderProps) {
+function EditorHeader({ template, brandId, onBack, onExport, onPublish, showMockupPanel, onToggleMockupPanel }: EditorHeaderProps) {
   const [figmaPickerOpen, setFigmaPickerOpen] = useState(false)
   const router = useRouter()
   
@@ -164,6 +159,15 @@ function EditorHeader({ template, brandId, onBack, onExport, onPublish }: Editor
         <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setFigmaPickerOpen(true)}>
           <Figma className="size-4" />
           Importar
+        </Button>
+        <Button 
+          variant={showMockupPanel ? "secondary" : "ghost"} 
+          size="sm" 
+          className="gap-1.5" 
+          onClick={onToggleMockupPanel}
+        >
+          <Image className="size-4" />
+          Mockup
         </Button>
         <Button variant="ghost" size="sm" onClick={onExport}>
           Export
@@ -213,7 +217,15 @@ export default function TemplateEditorPage() {
   const redo = useEditorStore((state) => state.redo)
   
     
-  const [selectedPageId, setSelectedPageId] = useState<string>('page-1')
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
+  const [showMockupPanel, setShowMockupPanel] = useState(false)
+  
+  // Set initial selected page when template loads
+  useEffect(() => {
+    if (template && !selectedPageId) {
+      setSelectedPageId(template.id)
+    }
+  }, [template, selectedPageId])
   
   // Initialize template - first try IndexedDB, then API, then mocks
   useEffect(() => {
@@ -295,11 +307,8 @@ export default function TemplateEditorPage() {
   // Selected node from store
   const selectedNodeId = selectedNodeIds[0] ?? null
   
-  // Stabilize rootNode reference - only change when rootNode.id changes
-  // This prevents unnecessary re-renders during zoom/pan
-  const stableRootNode = useMemo(() => {
-    return template?.rootNode ?? null
-  }, [template?.rootNode?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Get rootNode from template - updates when template changes
+  const rootNode = template?.rootNode ?? null
   
   const selectedNode = useMemo(() => {
     if (!selectedNodeId || !template) return null
@@ -381,6 +390,8 @@ export default function TemplateEditorPage() {
         onBack={handleBack}
         onExport={handleExport}
         onPublish={handlePublish}
+        showMockupPanel={showMockupPanel}
+        onToggleMockupPanel={() => setShowMockupPanel(!showMockupPanel)}
       />
       
       <div className="flex-1 flex overflow-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -394,9 +405,9 @@ export default function TemplateEditorPage() {
         />
         
         <main className="flex-1 relative overflow-hidden">
-          {stableRootNode && (
+          {rootNode && (
             <CanvasRenderer
-              rootNode={stableRootNode}
+              rootNode={rootNode}
               fonts={template?.fonts}
               selectedNodeId={selectedNodeId}
               onNodeClick={handleNodeClick}
@@ -407,6 +418,9 @@ export default function TemplateEditorPage() {
               onPanChange={setPanOffset}
             />
           )}
+          
+          {/* Floating Toolbar - appears when element is selected */}
+          <FloatingToolbar />
           
           <ZoomControls 
             zoom={zoom}
@@ -421,6 +435,15 @@ export default function TemplateEditorPage() {
           onUpdateNode={handleUpdateNode}
           onDeselectNode={handleDeselectNode}
         />
+        
+        {/* Mockup Preview Panel */}
+        {showMockupPanel && (
+          <MockupPreviewPanel
+            isOpen={showMockupPanel}
+            onClose={() => setShowMockupPanel(false)}
+            position="right"
+          />
+        )}
       </div>
     </div>
   )

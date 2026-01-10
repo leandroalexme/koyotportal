@@ -1,0 +1,5 @@
+# Pasta para imagens de mockups
+# Estrutura esperada:
+# /mockups/[mockup-id]/base.jpg     - Imagem de fundo
+# /mockups/[mockup-id]/overlay.png  - Camada de sombras/luz (transparente)
+# /mockups/[mockup-id]/thumb.jpg    - Thumbnail para preview

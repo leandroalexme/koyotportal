@@ -44,7 +44,7 @@ function openDB(): Promise<IDBDatabase> {
 
     request.onsuccess = () => {
       dbInstance = request.result
-      console.log('[TemplateDB] Database opened successfully')
+      // Database opened
       resolve(dbInstance)
     }
 
@@ -56,7 +56,7 @@ function openDB(): Promise<IDBDatabase> {
         const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' })
         store.createIndex('brandId', 'brandId', { unique: false })
         store.createIndex('updatedAt', 'updatedAt', { unique: false })
-        console.log('[TemplateDB] Created templates store')
+        // Store created
       }
     }
   })
@@ -101,7 +101,7 @@ export async function saveTemplate(
       const request = store.put(entry)
       
       request.onsuccess = () => {
-        console.log('[TemplateDB] Template saved:', id, template.name)
+        // Template saved
         resolve(true)
       }
       
@@ -132,10 +132,10 @@ export async function getTemplate(id: string): Promise<Template | null> {
       request.onsuccess = () => {
         const entry = request.result as StoredTemplate | undefined
         if (entry) {
-          console.log('[TemplateDB] Template found:', id, entry.template.name)
+          // Template found
           resolve(entry.template)
         } else {
-          console.log('[TemplateDB] Template not found:', id)
+          // Template not found
           resolve(null)
         }
       }
@@ -168,7 +168,7 @@ export async function getTemplatesByBrand(brandId: string): Promise<Template[]> 
       request.onsuccess = () => {
         const entries = request.result as StoredTemplate[]
         const templates = entries.map(e => e.template)
-        console.log('[TemplateDB] Found', templates.length, 'templates for brand:', brandId)
+        // Templates found for brand
         resolve(templates)
       }
       
@@ -198,7 +198,7 @@ export async function getAllTemplates(): Promise<StoredTemplate[]> {
       
       request.onsuccess = () => {
         const entries = request.result as StoredTemplate[]
-        console.log('[TemplateDB] Found', entries.length, 'total templates')
+        // All templates retrieved
         resolve(entries)
       }
       
@@ -227,7 +227,7 @@ export async function deleteTemplate(id: string): Promise<boolean> {
       const request = store.delete(id)
       
       request.onsuccess = () => {
-        console.log('[TemplateDB] Template deleted:', id)
+        // Template deleted
         resolve(true)
       }
       
@@ -279,7 +279,7 @@ export async function updateTemplate(id: string, template: Template): Promise<bo
         const putRequest = store.put(updated)
         
         putRequest.onsuccess = () => {
-          console.log('[TemplateDB] Template updated:', id)
+          // Template updated
           resolve(true)
         }
         
@@ -340,7 +340,7 @@ export async function migrateFromLocalStorage(): Promise<number> {
     }
     
     if (migrated > 0) {
-      console.log('[TemplateDB] Migrated', migrated, 'templates from localStorage')
+      // Migration complete
       // Clear localStorage after successful migration
       localStorage.removeItem(STORAGE_KEY)
     }
@@ -363,7 +363,7 @@ export async function initTemplateDB(): Promise<void> {
   try {
     await openDB()
     await migrateFromLocalStorage()
-    console.log('[TemplateDB] Initialized successfully')
+    // DB initialized
   } catch (error) {
     console.error('[TemplateDB] Initialization failed:', error)
   }

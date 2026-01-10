@@ -13,6 +13,7 @@ import {
   type PaddingHandle,
   DEFAULT_AUTO_LAYOUT_COLORS,
 } from './types'
+import { autoLayoutState } from './auto-layout-state'
 
 interface RenderOptions {
   ctx: CanvasRenderingContext2D
@@ -246,8 +247,8 @@ export function renderPaddingHatchArea(
   ctx.fillStyle = colors.paddingFill
   ctx.fillRect(x, y, width, height)
 
-  // Padrão hachurado
-  drawHatchPattern(ctx, x, y, width, height, zoom, dpr, colors.padding)
+  // Padrão hachurado (sempre ativo quando renderizado via sidebar)
+  drawHatchPattern(ctx, x, y, width, height, zoom, dpr, colors.padding, true)
 
   ctx.restore()
 }
@@ -289,8 +290,8 @@ export function renderGapHatchArea(
   ctx.fillStyle = colors.gapFill
   ctx.fillRect(x, y, width, height)
 
-  // Padrão hachurado
-  drawHatchPattern(ctx, x, y, width, height, zoom, dpr, colors.gap)
+  // Padrão hachurado (sempre ativo quando renderizado via sidebar)
+  drawHatchPattern(ctx, x, y, width, height, zoom, dpr, colors.gap, true)
 
   ctx.restore()
 }
@@ -306,15 +307,17 @@ function drawHatchPattern(
   height: number,
   zoom: number,
   dpr: number,
-  color: string
+  color: string,
+  isActive: boolean = false
 ): void {
   const spacing = 10 / zoom
-  const lineWidth = 1.5 * dpr / zoom
+  const lineWidth = 1 * dpr / zoom // Linha mais fina (1px)
 
   ctx.save()
   ctx.strokeStyle = color
   ctx.lineWidth = lineWidth
-  ctx.globalAlpha = 0.35
+  // Opacidade mais sutil por padrão, aumenta quando ativo
+  ctx.globalAlpha = isActive ? 0.35 : 0.2
 
   // Clip na área
   ctx.beginPath()
@@ -337,6 +340,42 @@ function drawHatchPattern(
 }
 
 /**
+ * Converte valor numérico para nome descritivo
+ */
+function getValueLabel(value: number): string {
+  const labels: Record<number, string> = {
+    0: 'Nenhum',
+    4: 'Mínimo',
+    8: 'Pequeno',
+    12: 'Compacto',
+    16: 'Normal',
+    20: 'Médio',
+    24: 'Confortável',
+    32: 'Amplo',
+    40: 'Grande',
+    48: 'Espaçoso',
+    56: 'Extra',
+    64: 'Máximo',
+  }
+  
+  // Encontra o valor mais próximo
+  const roundedValue = Math.round(value)
+  if (labels[roundedValue]) {
+    return labels[roundedValue]
+  }
+  
+  // Encontra o mais próximo
+  const keys = Object.keys(labels).map(Number).sort((a, b) => a - b)
+  let closest = keys[0]
+  for (const key of keys) {
+    if (Math.abs(key - roundedValue) < Math.abs(closest - roundedValue)) {
+      closest = key
+    }
+  }
+  return labels[closest]
+}
+
+/**
  * Renderiza tooltip com valor
  */
 export function renderValueTooltip(
@@ -348,8 +387,8 @@ export function renderValueTooltip(
   dpr: number,
   color: string
 ): void {
-  const text = Math.round(value).toString()
-  const fontSize = 12 * dpr / zoom
+  const text = getValueLabel(value)
+  const fontSize = 14 * dpr / zoom // Aumentado para melhor legibilidade
   const paddingX = 6 * dpr / zoom
   const paddingY = 4 * dpr / zoom
   const borderRadius = 4 * dpr / zoom
@@ -420,10 +459,16 @@ export class AutoLayoutHandlesRenderer {
     ctx.translate(frameX, frameY)
     ctx.scale(zoom * dpr, zoom * dpr)
 
-    // Renderiza área hachurada se hover ou dragging
-    const activeHandle = draggingHandle || hoveredHandle
+    // Verifica se há handle ativo via sidebar (estado global)
+    const globalState = autoLayoutState.getState()
+    const sidebarActiveHandle = globalState.activeFrameId === frame.id 
+      ? globalState.activeHandle 
+      : null
+
+    // Renderiza área hachurada se hover, dragging, ou editando via sidebar
+    const activeHandle = draggingHandle || hoveredHandle || sidebarActiveHandle
     if (activeHandle) {
-      this.renderHatchArea(frame, layout, activeHandle, zoom, dpr)
+      this.renderHatchAreaOnCanvas(ctx, frame, layout, activeHandle, zoom, dpr, layoutMap)
     }
 
     // Renderiza handles de padding
@@ -438,58 +483,110 @@ export class AutoLayoutHandlesRenderer {
       renderGapHandle(ctx, handle, zoom, dpr, this.colors)
     }
 
+    // Renderiza tooltip com valor se handle ativo
+    if (activeHandle && globalState.currentValue > 0) {
+      const tooltipPos = this.getTooltipPosition(frame, layout, activeHandle, layoutMap, zoom)
+      renderValueTooltip(ctx, tooltipPos.x, tooltipPos.y, globalState.currentValue, zoom, dpr, 
+        activeHandle === 'gap' ? this.colors.gap : this.colors.padding)
+    }
+
     ctx.restore()
   }
 
   /**
-   * Renderiza área hachurada para o handle ativo
+   * Renderiza área hachurada diretamente no canvas (não cria canvas temporário)
    */
-  private renderHatchArea(
+  private renderHatchAreaOnCanvas(
+    ctx: CanvasRenderingContext2D,
     frame: FrameNode,
     layout: ComputedLayout,
     handleType: string,
     zoom: number,
-    dpr: number
+    dpr: number,
+    layoutMap: Map<string, ComputedLayout>
   ): void {
-    const ctx = document.createElement('canvas').getContext('2d')
-    if (!ctx) return
-
     const padding = frame.autoLayout?.padding || { top: 0, right: 0, bottom: 0, left: 0 }
 
     if (handleType === 'gap') {
       const gap = frame.autoLayout?.gap || 0
-      const direction = frame.autoLayout?.layoutMode === 'HORIZONTAL' ? 'horizontal' : 'vertical'
-      renderGapHatchArea(
-        ctx,
-        layout.width,
-        layout.height,
-        direction,
-        0, // TODO: calcular posição real do gap
-        gap,
-        padding,
-        zoom,
-        dpr,
-        this.colors
-      )
-    } else if (handleType.startsWith('padding-')) {
-      const paddingType = handleType as 'padding-top' | 'padding-right' | 'padding-bottom' | 'padding-left'
-      let paddingValue = 0
-      if (paddingType === 'padding-top') paddingValue = padding.top
-      else if (paddingType === 'padding-right') paddingValue = padding.right
-      else if (paddingType === 'padding-bottom') paddingValue = padding.bottom
-      else if (paddingType === 'padding-left') paddingValue = padding.left
+      if (gap <= 0) return
 
-      renderPaddingHatchArea(
-        ctx,
-        layout.width,
-        layout.height,
-        paddingType,
-        paddingValue,
-        zoom,
-        dpr,
-        this.colors
-      )
+      const direction = frame.autoLayout?.layoutMode === 'HORIZONTAL' ? 'horizontal' : 'vertical'
+      const children = frame.children || []
+      
+      if (children.length < 2) return
+
+      // Renderiza área hachurada para cada gap entre filhos
+      for (let i = 0; i < children.length - 1; i++) {
+        const child = children[i]
+        const childLayout = layoutMap.get(child.id)
+        if (!childLayout) continue
+
+        const childRelX = childLayout.x - layout.x
+        const childRelY = childLayout.y - layout.y
+
+        let gapStart = 0
+        if (direction === 'vertical') {
+          gapStart = childRelY + childLayout.height
+        } else {
+          gapStart = childRelX + childLayout.width
+        }
+
+        renderGapHatchArea(
+          ctx,
+          layout.width,
+          layout.height,
+          direction,
+          gapStart,
+          gap,
+          padding,
+          zoom,
+          dpr,
+          this.colors
+        )
+      }
+    } else if (handleType.startsWith('padding-')) {
+      // Renderiza área hachurada para todos os lados do padding
+      // (quando editando via sidebar, o padding é uniforme)
+      const sides: Array<'padding-top' | 'padding-right' | 'padding-bottom' | 'padding-left'> = [
+        'padding-top', 'padding-right', 'padding-bottom', 'padding-left'
+      ]
+      
+      for (const side of sides) {
+        let paddingValue = 0
+        if (side === 'padding-top') paddingValue = padding.top
+        else if (side === 'padding-right') paddingValue = padding.right
+        else if (side === 'padding-bottom') paddingValue = padding.bottom
+        else if (side === 'padding-left') paddingValue = padding.left
+
+        if (paddingValue > 0) {
+          renderPaddingHatchArea(
+            ctx,
+            layout.width,
+            layout.height,
+            side,
+            paddingValue,
+            zoom,
+            dpr,
+            this.colors
+          )
+        }
+      }
     }
+  }
+
+  /**
+   * Calcula posição do tooltip para um handle - sempre centralizado na arte
+   */
+  private getTooltipPosition(
+    _frame: FrameNode,
+    layout: ComputedLayout,
+    _handleType: string,
+    _layoutMap: Map<string, ComputedLayout>,
+    _zoom: number
+  ): { x: number; y: number } {
+    // Sempre centralizado no meio da arte
+    return { x: layout.width / 2, y: layout.height / 2 }
   }
 
   /**

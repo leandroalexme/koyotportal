@@ -1,0 +1,95 @@
+eu consegui importar designs do figma para o nosso editor da nossa plataforma que usa canvas kit skia web gl, o usuário poderá editars os templates dele
+
+
+
+Só que eu queria apresentar alguns templates do usuário como cartão de visita, banner de outdoor, etc... em mockups de imagens reais dentro do brand showcase dele.
+
+
+
+E se o usuario modificar esse template o template deve ser modificado no mockup também.
+
+
+
+Como fazemos isso? sabendo que dependendo do mockup devemos distorcer o template para encaixar no mockup, devemos usar um psd com mascara inteligente? ou usar css deform talvez?
+
+
+
+Devemos converter o template em imagem primeiro para colocar no mockup?
+
+
+
+Como eu crio o mockup?
+
+
+
+Se for converter o mockup em imagem como ele é atualizado? toda vez que o usuario fizer uma alteração o mockup deve ser re renderizado novamente?
+
+Como você já utiliza CanvasKit (Skia) com WebGL, você tem em mãos a ferramenta mais poderosa para resolver esse problema de forma profissional e em tempo real. Esqueça o CSS Deform para este caso; o Skia permite manipulações de matriz de perspectiva muito mais precisas e performáticas.
+
+Aqui está o guia técnico para implementar essa funcionalidade de Dynamic Mockups de nível Enterprise:
+
+1. A Técnica: Texturização Dinâmica com Matriz de Perspectiva
+Para que o template se encaixe perfeitamente em um outdoor ou cartão de visita inclinado, você usará uma técnica chamada Homografia (Perspectiva 3x3).
+
+Não converta em imagem estática no servidor: Como você usa Skia, você pode tratar o template do usuário como uma "Layer" ou um "Canvas Offscreen".
+
+Snapshotting: Quando o usuário edita o template, você gera um snapshot (ou usa o buffer do WebGL) desse template e o aplica como um SkImage dentro do canvas do Mockup.
+
+2. Como criar e estruturar o Mockup
+O segredo para um mockup profissional (igual ao que agências usam no Photoshop) é a separação de camadas:
+
+Camada de Base (Background): Uma imagem real do ambiente (ex: uma mão segurando um cartão).
+
+Camada de Conteúdo (O seu Template): Aqui entra o template do usuário. Você aplicará uma SkMatrix de 3x3 para distorcer os quatro cantos do template para baterem com os cantos da área de inserção no mockup.
+
+Camada de Realismo (Shadows & Highlights): Esta é a camada mais importante. Você deve ter uma imagem (PNG/WebP) com sombras e reflexos que fica em cima do template, usando o modo de mesclagem (Blend Mode) Multiply ou Overlay. Isso faz com que a textura do papel ou a luz do ambiente "atravesse" o design do usuário.
+
+3. O Workflow de Atualização Real-time
+Como você já usa Zustand, a integração é simples:
+
+Store Sync: O seu editor-store.ts já gerencia o estado das camadas do template.
+
+Debounced Re-render: Sempre que o estado do template mudar, você dispara uma atualização no componente de Mockup. Para não travar a UI, use um pequeno debounce.
+
+Skia Draw: O seu MockupRenderer fará o seguinte:
+
+TypeScript
+
+// Pseudocódigo Skia
+const matrix = SkMatrix.setupPerspective(quad_points); // Pontos de distorção do outdoor
+canvas.save();
+canvas.concat(matrix);
+canvas.drawImage(userTemplateImage, 0, 0);
+canvas.restore();
+// Desenha as sombras por cima
+canvas.drawImage(mockupOverlayShadows, 0, 0, paintWithMultiply);
+4. Como você cria novos Mockups? (Ferramenta Interna)
+Você precisará criar uma pequena "ferramenta de administração" para cadastrar novos mockups:
+
+Sobe a foto real (Base).
+
+Marca 4 pontos (os cantos) onde o design deve ser inserido. Guarde essas coordenadas (X, Y) no seu JSON.
+
+Sobe a máscara de sombras (PNG transparente).
+
+5. Resumo das suas perguntas:
+Usar PSD com máscara inteligente? Apenas na fase de design. Depois, você exporta as camadas do PSD como imagens separadas para o Skia renderizar.
+
+CSS Deform? Não. Use as matrizes de perspectiva do Skia/CanvasKit. O resultado é infinitamente superior e permite resoluções maiores para exportação.
+
+Converter template em imagem? Sim, o Skia faz um makeImageFromCanvas() do template e o usa como textura para o mockup.
+
+Como ele é atualizado? Re-renderização automática via Zustand. Se o sistema for otimizado (WebGL), a atualização parece instantânea ao mover um texto no editor.
+
+Prompt Sugerido para o Windsurf (Implementação do Componente)
+"Atue como um Especialista em Skia/CanvasKit. Preciso criar um componente MockupViewer.tsx que receba os dados de um template do nosso editor-store e o renderize dentro de uma cena real.
+
+O componente deve carregar uma imagem de fundo (mockup base) e uma imagem de overlay (sombras/luz).
+
+Implemente uma função que aplique uma transformação de perspectiva (Homography 3x3) para mapear o template do usuário em 4 pontos específicos definidos no JSON do mockup.
+
+Utilize BlendMode.Multiply ou BlendMode.Screen para garantir que o design editado se integre organicamente às luzes e texturas da foto real.
+
+A atualização deve ser reativa: sempre que o template mudar no store, o mockup deve refletir a alteração usando o buffer do Skia para máxima performance."
+
+Você gostaria que eu ajudasse a desenhar a estrutura do objeto JSON que guardaria as coordenadas desses 4 pontos de distorção do mockup?

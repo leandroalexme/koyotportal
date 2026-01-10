@@ -15,6 +15,11 @@ import {
   HelpCircle,
   Settings2,
 } from 'lucide-react'
+import { 
+  activatePaddingHandle, 
+  activateGapHandle, 
+  deactivateSidebarHandle,
+} from '@/lib/studio/auto-layout'
 import {
   Accordion,
   AccordionContent,
@@ -65,18 +70,32 @@ const BRAND_COLORS: BrandColor[] = [
 
 const GAP_OPTIONS = [
   { label: 'Nenhum', value: 0 },
+  { label: 'Mínimo', value: 4 },
   { label: 'Pequeno', value: 8 },
+  { label: 'Compacto', value: 12 },
   { label: 'Normal', value: 16 },
-  { label: 'Grande', value: 24 },
-  { label: 'Extra', value: 32 },
+  { label: 'Médio', value: 20 },
+  { label: 'Confortável', value: 24 },
+  { label: 'Amplo', value: 32 },
+  { label: 'Grande', value: 40 },
+  { label: 'Espaçoso', value: 48 },
+  { label: 'Extra', value: 56 },
+  { label: 'Máximo', value: 64 },
 ]
 
 const PADDING_OPTIONS = [
   { label: 'Nenhum', value: 0 },
+  { label: 'Mínimo', value: 4 },
   { label: 'Pequeno', value: 8 },
+  { label: 'Compacto', value: 12 },
   { label: 'Normal', value: 16 },
-  { label: 'Grande', value: 24 },
-  { label: 'Extra', value: 32 },
+  { label: 'Médio', value: 20 },
+  { label: 'Confortável', value: 24 },
+  { label: 'Amplo', value: 32 },
+  { label: 'Grande', value: 40 },
+  { label: 'Espaçoso', value: 48 },
+  { label: 'Extra', value: 56 },
+  { label: 'Máximo', value: 64 },
 ]
 
 const CORNER_RADIUS_OPTIONS = [
@@ -203,16 +222,32 @@ export function FrameSettings({ node, userRole, onUpdate, onBack }: FrameSetting
   const isColorLocked = false
   const isCornerLocked = false
   
+  // Helper: encontra o índice mais próximo para um valor
+  const findClosestIndex = (options: { value: number }[], targetValue: number): number => {
+    let closestIdx = 0
+    let closestDiff = Math.abs(options[0].value - targetValue)
+    for (let i = 1; i < options.length; i++) {
+      const diff = Math.abs(options[i].value - targetValue)
+      if (diff < closestDiff) {
+        closestDiff = diff
+        closestIdx = i
+      }
+    }
+    return closestIdx
+  }
+
   // Gap slider state
   const [gapIndex, setGapIndex] = useState(() => {
-    const idx = GAP_OPTIONS.findIndex(g => g.value === node.autoLayout.gap)
-    return idx >= 0 ? idx : 2 // Default to Normal
+    const gapValue = node.autoLayout.gap ?? 0
+    const exactIdx = GAP_OPTIONS.findIndex(g => g.value === gapValue)
+    return exactIdx >= 0 ? exactIdx : findClosestIndex(GAP_OPTIONS, gapValue)
   })
   
   // Padding slider state (using top as reference for uniform padding)
   const [paddingIndex, setPaddingIndex] = useState(() => {
-    const idx = PADDING_OPTIONS.findIndex(p => p.value === node.autoLayout.padding.top)
-    return idx >= 0 ? idx : 2 // Default to Normal
+    const paddingValue = node.autoLayout.padding?.top ?? 0
+    const exactIdx = PADDING_OPTIONS.findIndex(p => p.value === paddingValue)
+    return exactIdx >= 0 ? exactIdx : findClosestIndex(PADDING_OPTIONS, paddingValue)
   })
   
   // Corner radius slider state
@@ -256,6 +291,8 @@ export function FrameSettings({ node, userRole, onUpdate, onBack }: FrameSetting
   }, [node.id, node.autoLayout, onUpdate])
 
   const handleGapChange = useCallback((value: number) => {
+    // Ativa visualização do gap no canvas
+    activateGapHandle(node.id, value)
     onUpdate(node.id, {
       autoLayout: {
         ...node.autoLayout,
@@ -264,7 +301,13 @@ export function FrameSettings({ node, userRole, onUpdate, onBack }: FrameSetting
     })
   }, [node.id, node.autoLayout, onUpdate])
 
+  const handleGapInteractionEnd = useCallback(() => {
+    deactivateSidebarHandle()
+  }, [])
+
   const handlePaddingChange = useCallback((value: number) => {
+    // Ativa visualização do padding no canvas (usa 'top' como referência para padding uniforme)
+    activatePaddingHandle('top', node.id, value)
     onUpdate(node.id, {
       autoLayout: {
         ...node.autoLayout,
@@ -277,6 +320,10 @@ export function FrameSettings({ node, userRole, onUpdate, onBack }: FrameSetting
       },
     })
   }, [node.id, node.autoLayout, onUpdate])
+
+  const handlePaddingInteractionEnd = useCallback(() => {
+    deactivateSidebarHandle()
+  }, [])
 
   const handleColorChange = useCallback((color: BrandColor) => {
     onUpdate(node.id, {
@@ -516,7 +563,7 @@ export function FrameSettings({ node, userRole, onUpdate, onBack }: FrameSetting
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="px-1">
+                  <div className="px-1" onPointerUp={handleGapInteractionEnd} onPointerLeave={handleGapInteractionEnd}>
                     <Slider
                       value={[gapIndex]}
                       onValueChange={(v) => {
@@ -557,7 +604,7 @@ export function FrameSettings({ node, userRole, onUpdate, onBack }: FrameSetting
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="px-1">
+                  <div className="px-1" onPointerUp={handlePaddingInteractionEnd} onPointerLeave={handlePaddingInteractionEnd}>
                     <Slider
                       value={[paddingIndex]}
                       onValueChange={(v) => {

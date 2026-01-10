@@ -33,7 +33,8 @@ export function measureText(
   fontSize: number,
   fontWeight: number,
   maxWidth: number,
-  lineHeight: number | 'AUTO'
+  lineHeight: number | 'AUTO',
+  letterSpacing: number = 0
 ): { width: number; height: number } {
   const ctx = getMeasureContext()
   if (!ctx) {
@@ -43,6 +44,16 @@ export function measureText(
   ctx.font = `${fontWeight} ${fontSize}px "${fontFamily}", sans-serif`
 
   const actualLineHeight = lineHeight === 'AUTO' ? fontSize * 1.4 : lineHeight
+
+  // Helper to measure text with letter spacing
+  const measureWithSpacing = (text: string): number => {
+    if (letterSpacing === 0) return ctx.measureText(text).width
+    let totalWidth = 0
+    for (let i = 0; i < text.length; i++) {
+      totalWidth += ctx.measureText(text[i]).width + (i < text.length - 1 ? letterSpacing : 0)
+    }
+    return totalWidth
+  }
 
   // Handle newlines first - split into paragraphs
   const paragraphs = content.split('\n')
@@ -62,11 +73,11 @@ export function measureText(
 
     for (const word of words) {
       const testLine = currentLine + (currentLine ? ' ' : '') + word
-      const metrics = ctx.measureText(testLine)
+      const testWidth = measureWithSpacing(testLine)
 
-      if (metrics.width > maxWidth && currentLine) {
+      if (testWidth > maxWidth && currentLine) {
         // Line is too long, wrap
-        maxLineWidth = Math.max(maxLineWidth, ctx.measureText(currentLine).width)
+        maxLineWidth = Math.max(maxLineWidth, measureWithSpacing(currentLine))
         currentLine = word
         totalLines++
       } else {
@@ -76,7 +87,7 @@ export function measureText(
 
     // Last line of paragraph
     if (currentLine) {
-      maxLineWidth = Math.max(maxLineWidth, ctx.measureText(currentLine).width)
+      maxLineWidth = Math.max(maxLineWidth, measureWithSpacing(currentLine))
       totalLines++
     }
   }
@@ -84,8 +95,11 @@ export function measureText(
   // Ensure at least one line
   if (totalLines === 0) totalLines = 1
 
+  // Add buffer to prevent edge-case wrapping due to font rendering differences
+  // The buffer accounts for sub-pixel rendering and font hinting variations
+  const buffer = Math.max(2, fontSize * 0.05) // At least 2px or 5% of font size
   return {
-    width: Math.min(maxLineWidth, maxWidth),
+    width: Math.min(Math.ceil(maxLineWidth + buffer), maxWidth),
     height: totalLines * actualLineHeight,
   }
 }
@@ -222,10 +236,13 @@ function configureYogaNode(
       ? style.fontSize * style.lineHeight
       : style.fontSize * 1.4
 
+    // Get letter spacing from style
+    const letterSpacing = style.letterSpacing ?? 0
+
     // Width sizing
     if (autoLayout.horizontalSizing === 'HUG') {
       // Measure text to get intrinsic width
-      const measured = measureText(content, style.fontFamily, style.fontSize, style.fontWeight, 10000, lineHeightPx)
+      const measured = measureText(content, style.fontFamily, style.fontSize, style.fontWeight, 10000, lineHeightPx, letterSpacing)
       yogaNode.setWidth(measured.width)
     } else if (autoLayout.horizontalSizing === 'FIXED') {
       yogaNode.setWidth(size.width)
@@ -249,7 +266,7 @@ function configureYogaNode(
       } else {
         estimatedWidth = 10000
       }
-      const measured = measureText(content, style.fontFamily, style.fontSize, style.fontWeight, estimatedWidth, lineHeightPx)
+      const measured = measureText(content, style.fontFamily, style.fontSize, style.fontWeight, estimatedWidth, lineHeightPx, letterSpacing)
       // Add some buffer for text that might wrap more
       yogaNode.setMinHeight(measured.height)
       yogaNode.setHeightAuto()
@@ -452,13 +469,15 @@ function remeasureTextNodes(yogaNode: YogaNode, sceneNode: SceneNode): void {
           ? style.fontSize * style.lineHeight
           : style.fontSize * 1.4
 
+        const letterSpacing = style.letterSpacing ?? 0
         const measured = measureText(
           content,
           style.fontFamily,
           style.fontSize,
           style.fontWeight,
           computedWidth,
-          lineHeightPx
+          lineHeightPx,
+          letterSpacing
         )
         
         // Update height based on actual width
